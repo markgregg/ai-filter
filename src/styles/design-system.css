@@ -1,0 +1,1491 @@
+/* ==========================================================================
+   SEMANTIC TOKENS — Colors and component sizing
+   Primitives (spacing, radius, typography) live in tokens.css
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Color tokens (semantic)
+   -------------------------------------------------------------------------- */
+:root {
+  /* Base palette (formerly provided by Tailwind CSS variables) */
+  --color-black: #000000;
+  --color-white: #ffffff;
+
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+  --color-neutral-950: #0a0a0a;
+
+  --color-blue-50: #eff6ff;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-950: #172554;
+
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-950: #451a03;
+
+  --color-green-400: #4ade80;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+
+  --color-sky-400: #38bdf8;
+  --color-sky-600: #0284c7;
+
+  --color-orange-600: #ea580c;
+
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #0d9488;
+
+  --color-cyan-400: #22d3ee;
+  --color-cyan-600: #0891b2;
+  --color-cyan-900: #164e63;
+
+  --color-purple-400: #c084fc;
+  --color-purple-500: #a855f7;
+  --color-purple-600: #9333ea;
+
+  --color-yellow-400: #facc15;
+  --color-yellow-600: #ca8a04;
+
+  --color-emerald-500: #10b981;
+  --color-rose-500: #f43f5e;
+
+  /* Colors — semantic */
+  --background: var(--color-white);
+  --foreground: var(--color-neutral-950);
+  --card: var(--color-white);
+  --card-foreground: var(--color-neutral-950);
+  --popover: var(--color-white);
+  --popover-foreground: var(--color-neutral-950);
+  --primary: var(--color-neutral-900);
+  --primary-foreground: var(--color-neutral-50);
+  --secondary: var(--color-neutral-100);
+  --secondary-foreground: var(--color-neutral-900);
+  --secondary-hover: var(--color-neutral-200);
+  --muted: var(--color-neutral-100);
+  --muted-foreground: var(--color-neutral-500);
+  --accent: var(--color-neutral-100);
+  --accent-foreground: var(--color-neutral-900);
+  --link: var(--color-blue-700);
+  --link-foreground: var(--color-neutral-50);
+  --destructive: var(--color-red-600);
+  --destructive-foreground: var(--color-neutral-50);
+  --border: var(--color-neutral-200);
+  --input: var(--color-neutral-200);
+  --ring: var(--color-blue-600);
+  --chart-1: var(--color-orange-600);
+  --chart-2: var(--color-teal-600);
+  --chart-3: var(--color-cyan-900);
+  --chart-4: var(--color-amber-400);
+  --chart-5: var(--color-amber-500);
+  --sidebar: var(--color-neutral-50);
+  --sidebar-foreground: var(--color-neutral-950);
+
+  /* Semantic extras */
+  --success: var(--color-green-600);
+  --success-foreground: var(--color-neutral-50);
+  --warning: var(--color-amber-400);
+  --warning-foreground: var(--color-amber-950);
+  --info: var(--color-sky-600);
+  --info-foreground: var(--color-neutral-50);
+
+  /* Press state — blue-700 / white for active/pressed controls */
+  --press: var(--color-blue-800);
+  --press-foreground: var(--color-neutral-50);
+
+  /* Selection state — blue / white for selected rows, list items, etc. */
+  --selection: var(--color-blue-600);
+  --selection-foreground: var(--color-white);
+
+  /* dataSyntax — visual grammar for data display */
+  --data-primary: var(--color-neutral-900);
+  --data-secondary: var(--color-neutral-600);
+  --data-currency: var(--color-yellow-600);
+  --data-entity: var(--color-blue-600);
+  --data-identifier: var(--color-cyan-600);
+  --data-category: var(--color-purple-600);
+  --data-datetime: var(--color-teal-600);
+
+  --data-status-positive: var(--color-green-600);
+  --data-status-negative: var(--color-red-600);
+  --data-status-warning: var(--color-amber-500);
+  --data-status-neutral: var(--color-neutral-500);
+
+  --data-value-positive: var(--color-green-600);
+  --data-value-negative: var(--color-red-600);
+  --data-value-neutral: var(--color-neutral-900);
+
+  /* Semantic sizing tokens — shared across component families */
+  --radius: 0.1875rem;
+  --control-height-sm: 1.5rem;
+  --control-height-md: 2rem;
+  --control-height-lg: 2.5rem;
+  --control-px-sm: 0.75rem;
+  --control-px-md: 1rem;
+  --control-px-lg: 1.5rem;
+  --control-gap: 0.5rem;
+
+  /* Radius by hierarchy — outer to inner */
+  --radius-container: var(--ds-radius-xl); /* Card, Dialog, Sheet, Drawer */
+  --radius-control: var(--ds-radius-md); /* Button, Input, Select, Toggle — all sizes */
+  --radius-inset: var(--ds-radius-sm); /* Elements nested inside controls or cards */
+  --radius-pill: var(--ds-radius-full); /* Badge, tags, pills */
+
+  --card-padding: 1.5rem;
+  --badge-height: 1.25rem;
+  --badge-px: 0.5rem;
+  --avatar-size-sm: 2rem;
+  --avatar-size-md: 2.5rem;
+  --avatar-size-lg: 3.5rem;
+  --sidebar-width: 16rem;
+
+  /* components/universal */
+  --component-font-size: var(--ds-text-sm);
+  --component-font-weight: var(--ds-font-medium);
+  --component-font-family: inherit;
+  --component-letter-spacing: normal;
+  --component-disabled-bg: var(--muted);
+  --component-disabled-fg: var(--muted-foreground);
+  --component-height-sm: var(--control-height-sm);
+  --component-height-md: var(--control-height-md);
+  --component-height-lg: var(--control-height-lg);
+  --component-padding-x-sm: var(--control-px-sm);
+  --component-padding-x-md: var(--control-px-md);
+  --component-padding-x-lg: var(--control-px-lg);
+  --component-padding-y: var(--control-gap);
+  --component-radius: var(--radius);
+
+  /* components/button */
+  --button-radius: var(--component-radius);
+  --button-px: var(--component-padding-x-md);
+  --button-py: var(--component-padding-y);
+  --button-font-size: var(--component-font-size);
+  --button-font-weight: var(--component-font-weight);
+  --button-primary-bg: var(--primary);
+  --button-primary-fg: var(--primary-foreground);
+  --button-primary-border: var(--primary);
+  --button-primary-bg-hover: var(--color-neutral-700);
+  --button-primary-border-hover: var(--color-neutral-700);
+  --button-secondary-bg: var(--secondary);
+  --button-secondary-fg: var(--secondary-foreground);
+  --button-secondary-border: var(--border);
+  --button-secondary-bg-hover: var(--secondary-hover);
+  --button-secondary-border-hover: var(--border);
+  --button-ghost-bg: transparent;
+  --button-ghost-fg: var(--foreground);
+  --button-ghost-border: transparent;
+  --button-ghost-bg-hover: var(--accent);
+  --button-ghost-fg-hover: var(--accent-foreground);
+  --button-ghost-border-hover: var(--border);
+  --button-link-bg: transparent;
+  --button-link-fg: var(--link);
+  --button-link-border: transparent;
+  --button-link-fg-hover: var(--color-blue-800);
+  --button-destructive-bg: var(--destructive);
+  --button-destructive-fg: var(--destructive-foreground);
+  --button-destructive-border: var(--destructive);
+  --button-destructive-bg-hover: var(--color-red-700);
+  --button-cta-bg: var(--ring);
+  --button-cta-fg: var(--color-white);
+  --button-cta-border: var(--ring);
+  --button-cta-bg-hover: var(--color-blue-700);
+  --button-cta-radius: var(--ds-radius-full);
+  --button-rag-green-bg: var(--success);
+  --button-rag-green-fg: var(--success-foreground);
+  --button-rag-green-border: var(--success);
+  --button-rag-green-bg-hover: var(--color-green-600);
+  --button-rag-yellow-bg: var(--warning);
+  --button-rag-yellow-fg: var(--warning-foreground);
+  --button-rag-yellow-border: var(--warning);
+  --button-rag-yellow-bg-hover: var(--color-amber-500);
+  --button-rag-red-bg: var(--destructive);
+  --button-rag-red-fg: var(--destructive-foreground);
+  --button-rag-red-border: var(--destructive);
+  --button-rag-red-bg-hover: var(--color-red-700);
+
+  /* components/input */
+  --input-bg: var(--background);
+  --input-fg: var(--foreground);
+  --input-placeholder: var(--muted-foreground);
+  --input-border: var(--input);
+  --input-border-hover: var(--border);
+  --input-border-focus: var(--ring);
+  --input-border-error: var(--destructive);
+  --input-border-disabled: var(--border);
+  --input-bg-disabled: var(--muted);
+  --input-fg-disabled: var(--muted-foreground);
+  --input-radius: var(--component-radius);
+  --input-px: var(--component-padding-x-md);
+  --input-py: var(--component-padding-y);
+  --input-font-size: var(--component-font-size);
+
+  /* components/card */
+  --card-bg: var(--card);
+  --card-fg: var(--card-foreground);
+  --card-border: var(--border);
+  --card-bg-hover: var(--accent);
+  --card-fg-hover: var(--accent-foreground);
+  --card-border-hover: var(--border);
+  --card-radius: var(--radius-container);
+  --card-px: var(--component-padding-x-lg);
+  --card-py: var(--component-padding-x-lg);
+
+  /* components/badge */
+  --badge-bg: var(--secondary);
+  --badge-fg: var(--secondary-foreground);
+  --badge-border: var(--border);
+  --badge-bg-hover: var(--accent);
+  --badge-fg-hover: var(--accent-foreground);
+  --badge-radius: var(--radius-pill);
+  --badge-px: var(--component-padding-x-sm);
+  --badge-py: 0.125rem;
+  --badge-font-size: var(--ds-text-xs);
+  --badge-font-weight: var(--component-font-weight);
+
+  /* components/dialog */
+  --dialog-bg: var(--popover);
+  --dialog-fg: var(--popover-foreground);
+  --dialog-border: var(--border);
+  --dialog-radius: var(--radius-container);
+  --dialog-px: var(--component-padding-x-lg);
+  --dialog-py: var(--component-padding-x-lg);
+  --dialog-overlay-bg: rgba(0, 0, 0, 0.5);
+  --drawer-overlay-bg: rgba(0, 0, 0, 0.5);
+  --alert-dialog-overlay-bg: rgba(0, 0, 0, 0.1);
+
+  /* components/popover */
+  --popover-bg: var(--popover);
+  --popover-fg: var(--popover-foreground);
+  --popover-border-color: var(--border);
+  --popover-radius: var(--component-radius);
+  --popover-px: var(--component-padding-x-md);
+  --popover-py: var(--component-padding-y);
+
+  /* components/toast */
+  --toast-bg: var(--primary);
+  --toast-fg: var(--primary-foreground);
+  --toast-border: var(--border);
+  --toast-bg-hover: var(--color-neutral-700);
+  --toast-radius: var(--component-radius);
+  --toast-px: var(--component-padding-x-md);
+  --toast-py: var(--component-padding-y);
+
+  /* components/tooltip */
+  --tooltip-bg: var(--primary);
+  --tooltip-fg: var(--primary-foreground);
+  --tooltip-border: var(--border);
+  --tooltip-radius: var(--component-radius);
+  --tooltip-px: var(--component-padding-x-sm);
+  --tooltip-py: 0.25rem;
+  --tooltip-font-size: var(--ds-text-xs);
+
+  /* components/select */
+  --select-bg: var(--background);
+  --select-fg: var(--foreground);
+  --select-placeholder: var(--muted-foreground);
+  --select-border: var(--input);
+  --select-border-hover: var(--border);
+  --select-border-focus: var(--ring);
+  --select-radius: var(--component-radius);
+  --select-px: var(--component-padding-x-md);
+  --select-py: var(--component-padding-y);
+  --select-trigger-px: 0.75rem;
+  --select-trigger-py: 0.5rem;
+  --select-item-px: 0.5rem;
+  --select-item-py: 0.375rem;
+  --select-item-icon-offset: 2rem;
+  --select-item-bg-hover: var(--accent);
+  --select-item-fg-hover: var(--accent-foreground);
+
+  /* components/dropdown-menu */
+  --dropdown-bg: var(--popover);
+  --dropdown-fg: var(--popover-foreground);
+  --dropdown-border: var(--border);
+  --dropdown-item-bg-hover: var(--accent);
+  --dropdown-item-fg-hover: var(--accent-foreground);
+  --dropdown-radius: var(--component-radius);
+  --dropdown-px: var(--component-padding-x-sm);
+  --dropdown-py: 0.25rem;
+  --dropdown-font-size: var(--component-font-size);
+
+  /* components/tabs */
+  --tabs-list-bg: var(--muted);
+  --tabs-list-fg: var(--muted-foreground);
+  --tabs-trigger-bg-active: var(--background);
+  --tabs-trigger-fg-active: var(--foreground);
+  --tabs-trigger-bg-hover: var(--accent);
+  --tabs-trigger-fg-hover: var(--accent-foreground);
+  --tabs-border: var(--border);
+  --tabs-radius: var(--component-radius);
+  --tabs-px: var(--component-padding-x-md);
+  --tabs-py: var(--component-padding-y);
+  --tabs-list-height: 2.25rem;
+  --tabs-list-padding: 0.25rem;
+  --tabs-trigger-px: 0.75rem;
+  --tabs-trigger-py: 0.25rem;
+  --tabs-font-size: var(--component-font-size);
+  --tabs-font-weight: var(--component-font-weight);
+
+  /* components/table */
+  --table-header-bg: var(--muted);
+  --table-header-fg: var(--muted-foreground);
+  --table-row-bg: var(--background);
+  --table-row-bg-hover: var(--accent);
+  --table-row-bg-striped: var(--muted);
+  --table-row-fg: var(--foreground);
+  --table-row-fg-hover: var(--accent-foreground);
+  --table-row-bg-selected: var(--color-blue-600);
+  --table-row-fg-selected: var(--color-white);
+  --table-border: var(--border);
+  --table-radius: var(--component-radius);
+  --table-header-font-size: var(--ds-text-xs);
+  --table-header-font-weight: var(--component-font-weight);
+  --table-cell-font-size: var(--component-font-size);
+
+  /* components/sidebar */
+  --sidebar-bg: var(--sidebar);
+  --sidebar-fg: var(--sidebar-foreground);
+  --sidebar-border-color: var(--border);
+  --sidebar-item-bg-hover: var(--accent);
+  --sidebar-item-fg-hover: var(--accent-foreground);
+  --sidebar-item-bg-active: var(--color-blue-50);
+  --sidebar-item-fg-active: var(--color-blue-700);
+  --sidebar-radius: var(--component-radius);
+  --sidebar-px: var(--component-padding-x-md);
+  --sidebar-py: var(--component-padding-x-md);
+
+  /* components/avatar */
+  --avatar-bg: var(--muted);
+  --avatar-fg: var(--muted-foreground);
+  --avatar-border: var(--border);
+  --avatar-radius: var(--ds-radius-full);
+  --avatar-size-sm: 2rem;
+  --avatar-size-md: 2.5rem;
+  --avatar-size-lg: 3.5rem;
+
+  /* components/checkbox */
+  --checkbox-bg: var(--background);
+  --checkbox-bg-hover: var(--accent);
+  --checkbox-bg-checked: var(--primary);
+  --checkbox-fg-checked: var(--primary-foreground);
+  --checkbox-border: var(--input);
+  --checkbox-border-hover: var(--ring);
+  --checkbox-border-checked: var(--primary);
+  --checkbox-radius: var(--radius-inset);
+  --checkbox-size: 1rem;
+  --checkbox-icon-size: 0.875rem;
+  --radio-size: 1rem;
+  --radio-indicator-size: 0.5rem;
+
+  /* components/switch */
+  --switch-track-bg: var(--input);
+  --switch-track-bg-hover: var(--border);
+  --switch-track-bg-checked: var(--primary);
+  --switch-thumb-bg: var(--background);
+  --switch-radius: var(--ds-radius-full);
+  --switch-width: 2.25rem;
+  --switch-height: 1.25rem;
+  --switch-width-sm: 1.5rem;
+  --switch-height-sm: 0.875rem;
+  --switch-thumb-size: 1rem;
+  --switch-thumb-size-sm: 0.75rem;
+
+  /* components/slider */
+  --slider-track-bg: var(--muted);
+  --slider-track-filled: var(--primary);
+  --slider-thumb-bg: var(--background);
+  --slider-thumb-border: var(--primary);
+  --slider-thumb-border-hover: var(--ring);
+  --slider-radius: var(--ds-radius-full);
+  --slider-track-height: 0.25rem;
+  --slider-thumb-size: 1rem;
+
+  /* components/progress */
+  --progress-track-bg: var(--muted);
+  --progress-fill-bg: var(--primary);
+  --progress-radius: var(--ds-radius-full);
+  --progress-height: 0.5rem;
+  --progress-gap: 0.75rem;
+
+  /* components/alert */
+  --alert-bg: var(--muted);
+  --alert-fg: var(--foreground);
+  --alert-border: var(--border);
+  --alert-radius: var(--radius-container);
+  --alert-px: var(--component-padding-x-md);
+  --alert-py: var(--component-padding-x-md);
+
+  /* components/skeleton */
+  --skeleton-bg: var(--muted);
+  --skeleton-radius: var(--component-radius);
+
+  /* components/separator */
+  --separator-bg: var(--border);
+  --separator-thickness: 1px;
+
+  /* components/accordion */
+  --accordion-bg: transparent;
+  --accordion-bg-hover: var(--accent);
+  --accordion-fg: var(--foreground);
+  --accordion-fg-hover: var(--accent-foreground);
+  --accordion-border: var(--border);
+  --accordion-radius: var(--component-radius);
+  --accordion-px: var(--component-padding-x-md);
+  --accordion-py: var(--component-padding-x-md);
+  --accordion-font-size: var(--component-font-size);
+  --accordion-font-weight: var(--component-font-weight);
+
+  /* components/sheet */
+  --sheet-bg: var(--background);
+  --sheet-fg: var(--foreground);
+  --sheet-border: var(--border);
+  --sheet-radius: 0;
+  --sheet-px: var(--component-padding-x-lg);
+  --sheet-py: var(--component-padding-x-lg);
+  --sheet-overlay-bg: rgba(0, 0, 0, 0.1);
+
+  /* components/command */
+  --command-bg: var(--popover);
+  --command-fg: var(--popover-foreground);
+  --command-border: var(--border);
+  --command-item-bg-hover: var(--accent);
+  --command-item-fg-hover: var(--accent-foreground);
+  --command-radius: var(--radius-container);
+  --command-px: var(--component-padding-x-md);
+  --command-py: var(--component-padding-y);
+  --command-font-size: var(--component-font-size);
+
+  /* components/navigation-menu */
+  --nav-bg: var(--background);
+  --nav-fg: var(--foreground);
+  --nav-border: var(--border);
+  --nav-item-bg-hover: var(--accent);
+  --nav-item-fg-hover: var(--accent-foreground);
+  --nav-radius: var(--component-radius);
+  --nav-px: var(--component-padding-x-md);
+  --nav-py: var(--component-padding-y);
+
+  /* components/pagination */
+  --pagination-bg: transparent;
+  --pagination-fg: var(--foreground);
+  --pagination-border: var(--border);
+  --pagination-bg-hover: var(--accent);
+  --pagination-fg-hover: var(--accent-foreground);
+  --pagination-bg-active: var(--primary);
+  --pagination-fg-active: var(--primary-foreground);
+  --pagination-radius: var(--component-radius);
+  --pagination-size: var(--component-height-md);
+
+  /* components/breadcrumb */
+  --breadcrumb-fg: var(--muted-foreground);
+  --breadcrumb-fg-hover: var(--foreground);
+  --breadcrumb-separator-fg: var(--muted-foreground);
+  --breadcrumb-fg-active: var(--foreground);
+  --breadcrumb-font-size: var(--component-font-size);
+
+  /* components/calendar */
+  --calendar-bg: var(--background);
+  --calendar-fg: var(--foreground);
+  --calendar-border: var(--border);
+  --calendar-day-bg-hover: var(--accent);
+  --calendar-day-fg-hover: var(--accent-foreground);
+  --calendar-day-bg-selected: var(--primary);
+  --calendar-day-fg-selected: var(--primary-foreground);
+  --calendar-day-bg-today: var(--accent);
+  --calendar-day-fg-today: var(--accent-foreground);
+  --calendar-radius: var(--component-radius);
+
+  /* components/toggle */
+  --toggle-bg: transparent;
+  --toggle-fg: var(--foreground);
+  --toggle-border: transparent;
+  --toggle-bg-hover: var(--accent);
+  --toggle-fg-hover: var(--accent-foreground);
+  --toggle-bg-active: var(--accent);
+  --toggle-fg-active: var(--accent-foreground);
+  --toggle-radius: var(--component-radius);
+  --toggle-px: var(--component-padding-x-md);
+  --toggle-py: var(--component-padding-y);
+
+  /* components/scroll-area */
+  --scroll-thumb-bg: var(--border);
+  --scroll-thumb-bg-hover: var(--muted-foreground);
+  --scroll-track-bg: transparent;
+  --scroll-radius: var(--ds-radius-full);
+  --scroll-thumb-width: 0.375rem;
+
+  /* components/data-table */
+  --data-table-row-height-sm: 1.25rem; /* 20px */
+  --data-table-row-height-md: 1.5rem; /* 24px */
+  --data-table-row-height-lg: 2rem; /* 32px */
+  --data-table-row-height: var(--data-table-row-height-md); /* default */
+  --data-table-header-height: var(--ds-space-10);
+  --data-table-row-divider-width: 0;
+  --data-table-cell-px: var(--component-padding-x-md);
+  --data-table-cell-py: 0;
+  --data-table-font-size: 0.9375rem; /* 15px */
+  --data-table-header-font-size: var(--ds-text-xs);
+  --data-table-font-weight: var(--ds-font-medium);
+  --data-table-header-font-weight: var(--component-font-weight);
+  --data-table-header-bg: var(--background);
+  --data-table-header-fg: var(--muted-foreground);
+  --data-table-row-bg: var(--background);
+  --data-table-row-bg-hover: var(--accent);
+  --data-table-row-bg-striped: var(--muted);
+  --data-table-row-fg: var(--foreground);
+  --data-table-row-bg-selected: var(--color-blue-600);
+  --data-table-row-fg-selected: var(--color-white);
+  --data-table-border: var(--border);
+
+  /* Table checkbox in selected row (inverted for contrast) */
+  --table-checkbox-in-selected-bg: var(--color-white);
+  --table-checkbox-in-selected-fg: var(--color-neutral-900);
+}
+
+/* --------------------------------------------------------------------------
+   Dark mode overrides (color tokens only)
+   -------------------------------------------------------------------------- */
+[data-color-scheme='dark'] {
+  --background: var(--color-black);
+  --foreground: var(--color-neutral-50);
+  --card: var(--color-neutral-950);
+  --card-foreground: var(--color-neutral-50);
+  --popover: var(--color-neutral-800);
+  --popover-foreground: var(--color-neutral-50);
+  --primary: var(--color-neutral-200);
+  --primary-foreground: var(--color-neutral-900);
+  --secondary: var(--color-neutral-800);
+  --secondary-foreground: var(--color-neutral-50);
+  --secondary-hover: var(--color-neutral-700);
+  --muted: var(--color-neutral-800);
+  --muted-foreground: var(--color-neutral-400);
+  --accent: var(--color-neutral-700);
+  --accent-foreground: var(--color-neutral-50);
+  --link: var(--color-blue-400);
+  --link-foreground: var(--color-neutral-950);
+  --destructive: var(--color-red-400);
+  --destructive-foreground: var(--color-neutral-50);
+  --border: var(--color-neutral-800);
+  --input: var(--color-neutral-800);
+  --ring: var(--color-blue-600);
+  --chart-1: var(--color-blue-700);
+  --chart-2: var(--color-emerald-500);
+  --chart-3: var(--color-amber-500);
+  --chart-4: var(--color-purple-500);
+  --chart-5: var(--color-rose-500);
+  --sidebar: var(--color-neutral-900);
+  --sidebar-foreground: var(--color-neutral-50);
+  --press: var(--color-blue-600);
+  --press-foreground: var(--color-neutral-50);
+
+  --selection: var(--color-blue-800);
+  --selection-foreground: var(--color-neutral-50);
+
+  /* Semantic extras */
+  --success: var(--color-green-500);
+  --success-foreground: var(--color-neutral-50);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-neutral-900);
+  --info: var(--color-sky-400);
+  --info-foreground: var(--color-neutral-50);
+
+  /* dataSyntax — visual grammar (dark) */
+  --data-primary: var(--color-neutral-50);
+  --data-secondary: var(--color-neutral-400);
+  --data-currency: var(--color-yellow-400);
+  --data-entity: var(--color-blue-400);
+  --data-identifier: var(--color-cyan-400);
+  --data-category: var(--color-purple-400);
+  --data-datetime: var(--color-teal-500);
+
+  --data-status-positive: var(--color-green-400);
+  --data-status-negative: var(--color-red-400);
+  --data-status-warning: var(--color-amber-400);
+  --data-status-neutral: var(--color-neutral-400);
+
+  --data-value-positive: var(--color-green-400);
+  --data-value-negative: var(--color-red-400);
+  --data-value-neutral: var(--color-neutral-50);
+
+  /* components/button — invert primary, link, destructive, cta, rag */
+  --button-primary-bg-hover: var(--color-neutral-300);
+  --button-link-fg: var(--link);
+  --button-link-fg-hover: var(--color-blue-300);
+  --button-destructive-bg-hover: var(--color-red-500);
+  --button-cta-bg: var(--ring);
+  --button-cta-fg: var(--color-white);
+  --button-cta-bg-hover: var(--color-blue-500);
+  --button-rag-green-bg-hover: var(--color-green-500);
+  --button-rag-yellow-bg-hover: var(--color-amber-400);
+  --button-rag-red-bg-hover: var(--color-red-500);
+
+  /* components/toast */
+  --toast-bg: var(--color-neutral-800);
+  --toast-bg-hover: var(--color-neutral-700);
+
+  /* components/sidebar */
+  --sidebar-item-bg-active: var(--color-blue-950);
+  --sidebar-item-fg-active: var(--color-blue-300);
+
+  /* components/table — selected row, checkbox in selected row */
+  --table-row-bg-selected: var(--color-blue-500);
+  --table-row-fg-selected: var(--color-white);
+  --data-table-row-bg-selected: var(--color-blue-500);
+  --data-table-row-fg-selected: var(--color-white);
+  --table-checkbox-in-selected-bg: var(--color-white);
+  --table-checkbox-in-selected-fg: var(--color-neutral-900);
+
+  /* components/data-table — softer row hover (neutral-800 vs accent/700 for balanced parity with light) */
+  --data-table-row-bg-hover: var(--color-neutral-800);
+}
+
+
+
+/* --------------------------------------------------------------------------
+   Auto dark mode — follows OS preference when no explicit scheme is set
+   -------------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme]),
+  [data-color-scheme='auto'] {
+  --background: var(--color-black);
+  --foreground: var(--color-neutral-50);
+  --card: var(--color-neutral-950);
+  --card-foreground: var(--color-neutral-50);
+  --popover: var(--color-neutral-800);
+  --popover-foreground: var(--color-neutral-50);
+  --primary: var(--color-neutral-200);
+  --primary-foreground: var(--color-neutral-900);
+  --secondary: var(--color-neutral-800);
+  --secondary-foreground: var(--color-neutral-50);
+  --secondary-hover: var(--color-neutral-700);
+  --muted: var(--color-neutral-800);
+  --muted-foreground: var(--color-neutral-400);
+  --accent: var(--color-neutral-700);
+  --accent-foreground: var(--color-neutral-50);
+  --link: var(--color-blue-400);
+  --link-foreground: var(--color-neutral-950);
+  --destructive: var(--color-red-400);
+  --destructive-foreground: var(--color-neutral-50);
+  --border: var(--color-neutral-800);
+  --input: var(--color-neutral-800);
+  --ring: var(--color-blue-600);
+  --chart-1: var(--color-blue-700);
+  --chart-2: var(--color-emerald-500);
+  --chart-3: var(--color-amber-500);
+  --chart-4: var(--color-purple-500);
+  --chart-5: var(--color-rose-500);
+  --sidebar: var(--color-neutral-900);
+  --sidebar-foreground: var(--color-neutral-50);
+  --press: var(--color-blue-600);
+  --press-foreground: var(--color-neutral-50);
+
+  --selection: var(--color-blue-800);
+  --selection-foreground: var(--color-neutral-50);
+
+  /* Semantic extras */
+  --success: var(--color-green-500);
+  --success-foreground: var(--color-neutral-50);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-neutral-900);
+  --info: var(--color-sky-400);
+  --info-foreground: var(--color-neutral-50);
+
+  /* dataSyntax — visual grammar (dark) */
+  --data-primary: var(--color-neutral-50);
+  --data-secondary: var(--color-neutral-400);
+  --data-currency: var(--color-yellow-400);
+  --data-entity: var(--color-blue-400);
+  --data-identifier: var(--color-cyan-400);
+  --data-category: var(--color-purple-400);
+  --data-datetime: var(--color-teal-500);
+
+  --data-status-positive: var(--color-green-400);
+  --data-status-negative: var(--color-red-400);
+  --data-status-warning: var(--color-amber-400);
+  --data-status-neutral: var(--color-neutral-400);
+
+  --data-value-positive: var(--color-green-400);
+  --data-value-negative: var(--color-red-400);
+  --data-value-neutral: var(--color-neutral-50);
+
+  /* components/button — invert primary, link, destructive, cta, rag */
+  --button-primary-bg-hover: var(--color-neutral-300);
+  --button-link-fg: var(--link);
+  --button-link-fg-hover: var(--color-blue-300);
+  --button-destructive-bg-hover: var(--color-red-500);
+  --button-cta-bg: var(--ring);
+  --button-cta-fg: var(--color-white);
+  --button-cta-bg-hover: var(--color-blue-500);
+  --button-rag-green-bg-hover: var(--color-green-500);
+  --button-rag-yellow-bg-hover: var(--color-amber-400);
+  --button-rag-red-bg-hover: var(--color-red-500);
+
+  /* components/toast */
+  --toast-bg: var(--color-neutral-800);
+  --toast-bg-hover: var(--color-neutral-700);
+
+  /* components/sidebar */
+  --sidebar-item-bg-active: var(--color-blue-950);
+  --sidebar-item-fg-active: var(--color-blue-300);
+
+  /* components/table — selected row, checkbox in selected row */
+  --table-row-bg-selected: var(--color-blue-500);
+  --table-row-fg-selected: var(--color-white);
+  --data-table-row-bg-selected: var(--color-blue-500);
+  --data-table-row-fg-selected: var(--color-white);
+  --table-checkbox-in-selected-bg: var(--color-white);
+  --table-checkbox-in-selected-fg: var(--color-neutral-900);
+
+  /* components/data-table — softer row hover (neutral-800 vs accent/700 for balanced parity with light) */
+  --data-table-row-bg-hover: var(--color-neutral-800);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Density overrides
+   -------------------------------------------------------------------------- */
+[data-density='super-high'] {
+  --control-height-sm: 1.25rem;
+  --control-height-md: 1.75rem;
+  --control-height-lg: 2.125rem;
+  --control-px-sm: 0.5rem;
+  --control-px-md: 0.75rem;
+  --control-px-lg: 1rem;
+  --control-gap: 0.375rem;
+
+  --badge-height: 1rem;
+  --badge-px: 0.375rem;
+  --card-padding: 1rem;
+
+  --checkbox-size: 0.875rem;
+  --checkbox-icon-size: 0.75rem;
+  --radio-size: 0.875rem;
+  --radio-indicator-size: 0.4375rem;
+
+  --switch-width: 1.75rem;
+  --switch-height: 1rem;
+  --switch-width-sm: 1.375rem;
+  --switch-height-sm: 0.75rem;
+  --switch-thumb-size: 0.875rem;
+  --switch-thumb-size-sm: 0.625rem;
+
+  --slider-track-height: 0.1875rem;
+  --slider-thumb-size: 0.875rem;
+  --progress-height: 0.3125rem;
+  --progress-gap: 0.5rem;
+
+  --tabs-list-height: 1.875rem;
+  --tabs-list-padding: 0.125rem;
+  --tabs-trigger-px: 0.5rem;
+  --tabs-trigger-py: 0.125rem;
+
+  --select-trigger-px: 0.5rem;
+  --select-trigger-py: 0.25rem;
+  --select-item-px: 0.375rem;
+  --select-item-py: 0.25rem;
+  --select-item-icon-offset: 1.625rem;
+
+  --data-table-row-height-sm: 1rem;
+  --data-table-row-height-md: 1.25rem;
+  --data-table-row-height-lg: 1.75rem;
+  --data-table-cell-px: var(--control-px-sm);
+  --data-table-font-size: 0.8125rem;
+}
+
+/* Accordion animations */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+/* Base styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: var(--ds-leading-normal, 1.5);
+}
+
+/* Focus ring utility */
+.focus-ring:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+/* Accordion animations */
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
+
+/* Spinner animation */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Pulse animation for skeleton */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes zoomIn95 {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes zoomOut95 {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes slideInFromTop {
+  from {
+    transform: translateY(-0.5rem);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    transform: translateY(0.5rem);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-0.5rem);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(0.5rem);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes enterFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(2.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes enterFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-2.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes enterFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-2.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes enterFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(2.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes exitToRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(2.5rem);
+  }
+}
+
+@keyframes exitToLeft {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-2.5rem);
+  }
+}
+
+@keyframes exitToTop {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-2.5rem);
+  }
+}
+
+@keyframes exitToBottom {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(2.5rem);
+  }
+}
+
+/* Light mode: selected row checkbox — white bg, black tick (inverted for contrast) */
+[data-theme='light'] [data-in-selected-row] [data-slot='checkbox'][data-checked],
+:not([data-color-scheme='dark']) [data-in-selected-row] [data-slot='checkbox'][data-checked] {
+  background-color: var(--table-checkbox-in-selected-bg);
+  border-color: var(--table-checkbox-in-selected-bg);
+  color: var(--table-checkbox-in-selected-fg);
+}
+
+/* ==========================================================================
+   UTILITY CLASSES — Common layout and spacing patterns
+   For gallery, calendar, and other layout-heavy components
+   ========================================================================== */
+
+/* Display utilities */
+.flex {
+  display: flex;
+}
+.flex-col {
+  flex-direction: column;
+}
+.flex-row {
+  flex-direction: row;
+}
+.flex-wrap {
+  flex-wrap: wrap;
+}
+.flex-nowrap {
+  flex-wrap: nowrap;
+}
+.inline-flex {
+  display: inline-flex;
+}
+.grid {
+  display: grid;
+}
+.block {
+  display: block;
+}
+.inline {
+  display: inline;
+}
+.inline-block {
+  display: inline-block;
+}
+.hidden {
+  display: none;
+}
+
+/* Alignment utilities */
+.items-start {
+  align-items: flex-start;
+}
+.items-center {
+  align-items: center;
+}
+.items-end {
+  align-items: flex-end;
+}
+.items-stretch {
+  align-items: stretch;
+}
+.justify-start {
+  justify-content: flex-start;
+}
+.justify-center {
+  justify-content: center;
+}
+.justify-end {
+  justify-content: flex-end;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.justify-around {
+  justify-content: space-around;
+}
+.gap-0 {
+  gap: 0;
+}
+.gap-1 {
+  gap: 0.25rem;
+}
+.gap-2 {
+  gap: 0.5rem;
+}
+.gap-3 {
+  gap: 0.75rem;
+}
+.gap-4 {
+  gap: 1rem;
+}
+.gap-6 {
+  gap: 1.5rem;
+}
+.gap-8 {
+  gap: 2rem;
+}
+
+/* Sizing utilities */
+.w-full {
+  width: 100%;
+}
+.h-full {
+  height: 100%;
+}
+.size-4 {
+  width: 1rem;
+  height: 1rem;
+}
+.size-5 {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.size-6 {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.size-8 {
+  width: 2rem;
+  height: 2rem;
+}
+.h-screen {
+  height: 100vh;
+}
+.min-h-screen {
+  min-height: 100vh;
+}
+
+/* Padding utilities */
+.p-0 {
+  padding: 0;
+}
+.p-1 {
+  padding: 0.25rem;
+}
+.p-2 {
+  padding: 0.5rem;
+}
+.p-3 {
+  padding: 0.75rem;
+}
+.p-4 {
+  padding: 1rem;
+}
+.p-6 {
+  padding: 1.5rem;
+}
+.p-8 {
+  padding: 2rem;
+}
+.px-2 {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+.px-3 {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+.px-4 {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.px-6 {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+.py-1 {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+.py-2 {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.py-3 {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+.py-4 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+/* Margin utilities */
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+.my-auto {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+.mt-auto {
+  margin-top: auto;
+}
+.mb-auto {
+  margin-bottom: auto;
+}
+
+/* Text utilities */
+.text-xs {
+  font-size: var(--ds-text-xs);
+}
+.text-sm {
+  font-size: var(--ds-text-sm);
+}
+.text-base {
+  font-size: var(--ds-text-base);
+}
+.text-lg {
+  font-size: var(--ds-text-lg);
+}
+.text-xl {
+  font-size: var(--ds-text-xl);
+}
+.text-2xl {
+  font-size: var(--ds-text-2xl);
+}
+.text-3xl {
+  font-size: var(--ds-text-3xl);
+}
+.font-normal {
+  font-weight: var(--ds-font-normal);
+}
+.font-medium {
+  font-weight: var(--ds-font-medium);
+}
+.font-semibold {
+  font-weight: var(--ds-font-semibold);
+}
+.font-bold {
+  font-weight: var(--ds-font-bold);
+}
+.text-foreground {
+  color: var(--foreground);
+}
+.text-muted-foreground {
+  color: var(--muted-foreground);
+}
+.text-center {
+  text-align: center;
+}
+.text-left {
+  text-align: left;
+}
+.text-right {
+  text-align: right;
+}
+
+/* Border utilities */
+.border {
+  border: 1px solid var(--border);
+}
+.border-t {
+  border-top: 1px solid var(--border);
+}
+.border-b {
+  border-bottom: 1px solid var(--border);
+}
+.border-l {
+  border-left: 1px solid var(--border);
+}
+.border-r {
+  border-right: 1px solid var(--border);
+}
+.rounded {
+  border-radius: var(--radius-control);
+}
+.rounded-md {
+  border-radius: calc(var(--radius) + 4px);
+}
+.rounded-lg {
+  border-radius: calc(var(--radius) + 8px);
+}
+
+/* Background color utilities */
+.bg-background {
+  background-color: var(--background);
+}
+.bg-card {
+  background-color: var(--card);
+}
+.bg-foreground {
+  background-color: var(--foreground);
+}
+.bg-accent {
+  background-color: var(--accent);
+}
+
+/* Opacity utilities */
+.opacity-50 {
+  opacity: 0.5;
+}
+.opacity-75 {
+  opacity: 0.75;
+}
+
+/* Position utilities */
+.relative {
+  position: relative;
+}
+.absolute {
+  position: absolute;
+}
+.fixed {
+  position: fixed;
+}
+.sticky {
+  position: sticky;
+}
+.top-0 {
+  top: 0;
+}
+.right-0 {
+  right: 0;
+}
+.bottom-0 {
+  bottom: 0;
+}
+.left-0 {
+  left: 0;
+}
+.inset-0 {
+  inset: 0;
+}
+.inset-x-0 {
+  left: 0;
+  right: 0;
+}
+
+/* Flexbox utilities */
+.flex-1 {
+  flex: 1;
+}
+.flex-none {
+  flex: none;
+}
+.flex-grow {
+  flex-grow: 1;
+}
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+/* Overflow utilities */
+.overflow-hidden {
+  overflow: hidden;
+}
+.overflow-auto {
+  overflow: auto;
+}
+.overflow-y-auto {
+  overflow-y: auto;
+}
+.overflow-x-hidden {
+  overflow-x: hidden;
+}
+
+/* Shadow utilities */
+.shadow-sm {
+  box-shadow: var(--ds-shadow-sm);
+}
+.shadow-md {
+  box-shadow: var(--ds-shadow-md);
+}
+.shadow-lg {
+  box-shadow: var(--ds-shadow-lg);
+}
+
+/* Z-index utilities */
+.z-0 {
+  z-index: 0;
+}
+.z-10 {
+  z-index: 10;
+}
+.z-20 {
+  z-index: 20;
+}
+.z-50 {
+  z-index: 50;
+}
+
+/* Appearance utilities */
+.select-none {
+  user-select: none;
+}
+.pointer-events-none {
+  pointer-events: none;
+}
+.cursor-pointer {
+  cursor: pointer;
+}
+.cursor-not-allowed {
+  cursor: not-allowed;
+}
+
+/* Transform utilities */
+.scale-0 {
+  transform: scale(0);
+}
+.scale-100 {
+  transform: scale(1);
+}
+.rotate-0 {
+  transform: rotate(0deg);
+}
+.rotate-90 {
+  transform: rotate(90deg);
+}
+
+/* Transition utilities */
+.transition {
+  transition: all 150ms;
+}
+
+/* Theme toggle icons */
+[data-theme='light'] .sun-icon,
+:not([data-color-scheme='dark']) .sun-icon {
+  transform: rotate(0) scale(1);
+  transition: transform 150ms;
+}
+
+[data-color-scheme='dark'] .sun-icon {
+  transform: rotate(-90deg) scale(0);
+}
+
+[data-theme='light'] .moon-icon,
+:not([data-color-scheme='dark']) .moon-icon {
+  transform: rotate(90deg) scale(0);
+  transition: transform 150ms;
+}
+
+[data-color-scheme='dark'] .moon-icon {
+  transform: rotate(0) scale(1);
+}

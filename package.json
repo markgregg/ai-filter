@@ -1,0 +1,73 @@
+{
+  "name": "ai-filter",
+  "version": "0.1.0",
+  "description": "A composable, keyboard-friendly React filter-pill component with typed fields, hints, and operators.",
+  "type": "module",
+  "main": "./dist/ai-filter.umd.cjs",
+  "module": "./dist/ai-filter.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/ai-filter.js",
+      "require": "./dist/ai-filter.umd.cjs"
+    },
+    "./core": {
+      "types": "./dist/types/core.d.ts",
+      "import": "./dist/core.js",
+      "require": "./dist/core.umd.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build:grammar": "nearleyc src/lib/grammar/filter.ne -o src/lib/grammar/filter.cjs",
+    "build": "npm run build:grammar && tsc -b && vite build --config vite.lib.config.ts",
+    "build:types": "tsc --project tsconfig.lib.json",
+    "dev": "vite --config vite.lib.config.ts",
+    "preview": "vite preview --config vite.lib.config.ts",
+    "storybook": "ladle serve",
+    "storybook:build": "ladle build",
+    "lint": "eslint src --max-warnings 0",
+    "lint:fix": "eslint src --fix",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.4.1",
+    "moo": "^0.5.3",
+    "nearley": "^2.20.1",
+    "use-context-selector": "^1.4.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@ladle/react": "^5.1.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/moo": "^0.5.10",
+    "@types/nearley": "^2.11.5",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "ag-grid-community": "^35.2.1",
+    "ag-grid-react": "^35.2.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "jsdom": "^29.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.59.1",
+    "vite": "^5.4.10",
+    "vite-plugin-dts": "^3.9.1",
+    "vitest": "^4.1.5"
+  }
+}

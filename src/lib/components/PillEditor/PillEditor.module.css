@@ -1,0 +1,183 @@
+.editor {
+  border: 0 !important;
+  outline: none;
+  background: transparent;
+  color: var(--ef-text);
+  min-width: 8rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  height: auto !important;
+  padding: 0 !important;
+  width: auto !important;
+}
+
+.editor:focus,
+.editor:focus-visible,
+.editor:hover {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-color: transparent !important;
+}
+
+.editorError {
+  color: var(--ef-error, #e03131);
+  text-decoration: underline wavy var(--ef-error, #e03131);
+}
+
+.rangeFrom,
+.rangeTo {
+  min-width: 5rem;
+  width: 5rem;
+}
+
+.rangeSep {
+  font-size: 0.72rem;
+  color: var(--ef-muted);
+  padding: 0 0.15rem;
+  white-space: nowrap;
+}
+
+.suggestionsDropdown {
+  min-width: 12rem;
+  max-height: 10rem;
+  overflow: auto;
+  border: 1px solid var(--ef-border);
+  border-radius: 4px;
+  background: var(--ef-surface);
+  box-shadow: var(--ef-shadow);
+}
+
+.suggestions {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  left: 0;
+  min-width: 12rem;
+  max-height: 10rem;
+  overflow: auto;
+  border: 1px solid var(--ef-border);
+  border-radius: 4px;
+  background: var(--ef-surface);
+  box-shadow: var(--ef-shadow);
+  z-index: 30;
+}
+
+.suggestion {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  justify-content: flex-start !important;
+  padding: 0.32rem 0.55rem !important;
+  height: auto !important;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.suggestion:hover,
+.suggestion.active {
+  background: var(--ef-hover-bg);
+}
+
+.noOptions {
+  padding: 0.32rem 0.55rem;
+  color: var(--ef-muted);
+  font-size: 0.8rem;
+}
+
+/* ── Number Field ────────────────────────────────────────── */
+
+.numGroup {
+  display: inline-flex;
+  align-items: center;
+}
+
+.numBtn {
+  border: 0;
+  background: transparent;
+  color: var(--ef-muted);
+  font-size: 0.82rem;
+  padding: 0 0.25rem !important;
+  height: auto !important;
+  cursor: pointer;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.numBtn:hover {
+  color: var(--ef-text);
+}
+
+/* ── List editor ─────────────────────────────────────────── */
+
+.listEditor {
+  display: inline-flex;
+  align-items: center;
+  min-width: 8rem;
+}
+
+/* Panel showing the current list values — sits below the pill (positioned by PortalDropdown) */
+.listDropdown {
+  min-width: 10rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  border: 1px solid var(--ef-border);
+  border-radius: 4px;
+  background: var(--ef-surface);
+  box-shadow: var(--ef-shadow);
+  z-index: 20;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--ef-text);
+}
+
+.listItem:hover,
+.listItemEditing {
+  background: var(--ef-hover, #e8eef7);
+}
+
+.listItemText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listItemDelete {
+  border: 0;
+  background: transparent;
+  color: var(--ef-muted, #889);
+  cursor: pointer;
+  padding: 0 0.15rem;
+  font-size: 0.95rem;
+  line-height: 1;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
+.listItemDelete:hover {
+  color: var(--ef-danger, #c0392b);
+  background: rgba(192, 57, 43, 0.08);
+}
+
+/* Autocomplete suggestions — overlays listDropdown when the user is typing (positioned by PortalDropdown) */
+.listSuggestions {
+  min-width: 10rem;
+  max-height: 10rem;
+  overflow-y: auto;
+  border: 1px solid var(--ef-border);
+  border-radius: 4px;
+  background: var(--ef-surface);
+  box-shadow: var(--ef-shadow);
+  z-index: 30;
+}

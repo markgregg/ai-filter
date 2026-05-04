@@ -1,0 +1,92 @@
+/* ── Design system foundation ─────────────────────────────────────────────── */
+@import './tokens.css';
+@import './design-system.css';
+@import './components.css';
+
+/* ── EasyFilter component tokens (mapped to design system) ───────────────── */
+/*
+   All --ef-* variables are aliases over the design-system semantic tokens so
+   that every CSS Module in the library automatically inherits the design
+   system color scheme, including automatic dark-mode via the
+   [data-color-scheme='dark'] blocks in design-system.css / components.css.
+*/
+:root,
+[data-color-scheme='light'] {
+  --ef-line-height: 2.1rem;
+
+  /* Borders */
+  --ef-border:               var(--border);
+  --ef-border-light:         color-mix(in oklab, var(--border) 60%, var(--background));
+  --ef-border-chip:          var(--border);
+  --ef-border-chip-selected: var(--ring);
+
+  /* Backgrounds */
+  --ef-bg:             var(--background);
+  --ef-surface:        var(--card);
+  --ef-chip:           var(--secondary);
+  --ef-chip-selected:  color-mix(in oklab, var(--ring) 18%, var(--secondary));
+  --ef-hover-bg:       var(--accent);
+  --ef-active-bg:      var(--secondary-hover);
+  --ef-op-bg:          var(--muted);
+  --ef-divider:        var(--border);
+  --ef-divider-strong: color-mix(in oklab, var(--border) 150%, var(--background));
+  --ef-invalid-bg:     color-mix(in oklab, var(--destructive) 8%, var(--background));
+  --ef-insert-zone:    color-mix(in oklab, var(--ring) 25%, var(--border));
+
+  /* Text */
+  --ef-text:        var(--foreground);
+  --ef-text-strong: var(--foreground);
+  --ef-muted:       var(--muted-foreground);
+  --ef-active-text: var(--press);
+  --ef-op-text:     var(--foreground);
+
+  /* Accent / focus */
+  --ef-focus:        var(--ring);
+  --ef-focus-subtle: color-mix(in oklab, var(--ring) 50%, var(--background));
+
+  /* Semantic */
+  --ef-danger: var(--destructive);
+  --ef-error:  var(--destructive);
+
+  /* Elevation */
+  --ef-shadow:               var(--ds-shadow-md);
+  --ef-shadow-chip-selected: 0 0 0 2px color-mix(in oklab, var(--ring) 30%, transparent);
+
+  font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+}
+
+/* ── Demo shell ───────────────────────────────────────────────────────────── */
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+#root {
+  padding: 2rem;
+}
+
+.demo-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.demo-log {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--ds-radius-md);
+  background: var(--card);
+  padding: 0.75rem;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 700px) {
+  #root {
+    padding: 1rem;
+  }
+}

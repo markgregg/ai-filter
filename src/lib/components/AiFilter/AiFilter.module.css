@@ -1,0 +1,159 @@
+.root {
+  position: relative;
+  z-index: 10;
+  height: var(--ef-line-height);
+}
+
+.frameWrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.root.expanded .frameWrap {
+  z-index: 10;
+  background: var(--ef-surface);
+  border-radius: 4px;
+}
+
+.root.expanded .frameWrap.stickyFrameWrap {
+  position: sticky;
+  top: 0.35rem;
+  z-index: 30;
+}
+
+.frame {
+  min-height: var(--ef-line-height);
+  border: 1px solid var(--ef-border);
+  border-radius: 4px;
+  background: var(--ef-bg);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.5rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.root.expanded .frame {
+  box-shadow: var(--ef-shadow);
+  border-color: var(--ef-focus);
+  background: var(--ef-surface);
+}
+
+.leftIcon {
+  width: calc(var(--ef-line-height) * 0.85);
+  height: calc(var(--ef-line-height) * 0.85);
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--ef-line-height) * 0.42);
+  flex-shrink: 0;
+  color: var(--ef-muted);
+  align-self: flex-start;
+  margin-top: calc((var(--ef-line-height) - 1.6rem) / 2);
+}
+
+.clear {
+  border: 0;
+  background: transparent;
+  color: var(--ef-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 0.35rem !important;
+  line-height: var(--ef-line-height);
+  height: var(--ef-line-height) !important;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.clear:hover {
+  color: var(--ef-text);
+}
+
+.aiIconBtn {
+  width: calc(var(--ef-line-height) * 0.85) !important;
+  height: calc(var(--ef-line-height) * 0.85) !important;
+  border: 0;
+  background: transparent;
+  border-radius: 3px;
+  display: grid !important;
+  place-items: center;
+  font-size: calc(var(--ef-line-height) * 0.42);
+  flex-shrink: 0;
+  color: var(--ef-muted);
+  cursor: pointer;
+  padding: 0 !important;
+  transition: color 0.15s ease, background 0.15s ease;
+  align-self: flex-start;
+  margin-top: calc((var(--ef-line-height) - 1.6rem) / 2);
+}
+
+.aiIconBtn:hover {
+  color: var(--ef-focus);
+  background: color-mix(in srgb, var(--ef-focus) 10%, transparent);
+}
+
+.aiInputWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.aiInput {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font: inherit;
+  color: var(--ef-text);
+  min-width: 0;
+  line-height: var(--ef-line-height);
+  height: var(--ef-line-height);
+}
+
+.aiInput::placeholder {
+  color: var(--ef-muted);
+  font-style: italic;
+}
+
+.aiInput:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.aiInput:focus,
+.aiInput:focus-visible,
+.aiInput:hover {
+  outline: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-color: transparent !important;
+}
+
+.aiSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--ef-focus) 30%, transparent);
+  border-top-color: var(--ef-focus);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: ef-spin 0.7s linear infinite;
+}
+
+@keyframes ef-spin {
+  to { transform: rotate(360deg); }
+}
+
+.aiError {
+  margin-top: 2px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8em;
+  color: var(--ef-danger);
+  background: color-mix(in srgb, var(--ef-danger) 8%, transparent);
+  border-radius: 0 0 4px 4px;
+  border: 1px solid color-mix(in srgb, var(--ef-danger) 25%, transparent);
+  border-top: 0;
+}

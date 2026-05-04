@@ -1,0 +1,232 @@
+.dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 15;
+  border: 1px solid var(--ef-border);
+  background: var(--ef-surface);
+  border-radius: 4px;
+  box-shadow: var(--ef-shadow);
+  padding: 0.35rem;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+}
+
+.ops {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--ef-divider-strong);
+}
+
+.opBtn {
+  border: 1px solid var(--ef-border-light);
+  cursor: pointer;
+  background: var(--ef-surface);
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-family: "Consolas", "Courier New", monospace;
+  font-weight: 600;
+  width: 2.2rem !important;
+  height: 1.6rem !important;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ef-op-text);
+  letter-spacing: 0.02em;
+}
+
+.opBtn:hover {
+  background: var(--ef-hover-bg);
+  border-color: var(--ef-focus-subtle);
+  color: var(--ef-focus-subtle);
+}
+
+.opBtn.active {
+  background: var(--ef-focus-subtle);
+  border-color: var(--ef-focus-subtle);
+  color: #fff;
+  font-weight: 700;
+}
+
+.logicalBtn {
+  background: var(--ef-op-bg);
+  color: var(--ef-op-text);
+  font-weight: 700;
+  font-size: 0.7rem;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  letter-spacing: 0.04em;
+  border-color: var(--ef-border-light);
+}
+
+.logicalBtn:hover {
+  background: var(--ef-hover-bg);
+  border-color: var(--ef-focus-subtle);
+  color: var(--ef-focus-subtle);
+}
+
+.opSep {
+  display: inline-block;
+  width: 1px;
+  background: var(--ef-border-light);
+  align-self: stretch;
+  margin: 0.1rem 0.25rem;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(9rem, 28%) 1fr;
+  gap: 0.4rem;
+  max-height: 15rem;
+}
+
+.fields,
+.values {
+  overflow: hidden;
+  border: 1px solid var(--ef-border-light);
+  border-radius: 3px;
+}
+
+.fieldRow {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--ef-divider);
+}
+
+.fieldRow:last-child {
+  border-bottom: 0;
+}
+
+.fieldOption {
+  flex: 1;
+  text-align: left;
+  justify-content: flex-start !important;
+  border: 0;
+  background: transparent;
+  padding: 0.32rem 0.5rem !important;
+  height: auto !important;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--ef-text);
+}
+
+.fieldOption.active {
+  background: var(--ef-active-bg);
+  color: var(--ef-active-text);
+  font-weight: 600;
+}
+
+.fieldOption:hover:not(.active) {
+  background: var(--ef-hover-bg);
+}
+
+.fieldPlus {
+  border: 0;
+  background: transparent;
+  color: var(--ef-muted);
+  cursor: pointer;
+  width: 1.6rem !important;
+  height: 1.6rem !important;
+  padding: 0 !important;
+  border-radius: 3px;
+  margin-right: 0.2rem;
+  font-size: 1rem;
+  line-height: 1;
+  display: grid !important;
+  place-items: center;
+}
+
+.fieldPlus:hover {
+  background: var(--ef-hover-bg);
+  color: var(--ef-focus-subtle);
+}
+
+.hintRow {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  justify-content: flex-start !important;
+  cursor: pointer;
+  padding: 0.32rem 0.5rem !important;
+  height: auto !important;
+  border-bottom: 1px solid var(--ef-divider);
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--ef-text);
+}
+
+.hintRow:hover {
+  background: var(--ef-hover-bg);
+}
+
+.hintRow.active {
+  background: var(--ef-active-bg);
+  color: var(--ef-active-text);
+  font-weight: 600;
+}
+
+.hintRow:last-child {
+  border-bottom: 0;
+}
+
+/* ── Base UI ScrollArea ───────────────────────────────────────────────────── */
+.scrollRoot {
+  height: 100%;
+  overflow: hidden;
+}
+
+.scrollViewport {
+  height: 100%;
+  overflow-y: scroll;
+}
+
+.scrollbar {
+  display: flex;
+  width: 6px;
+  padding: 2px 0;
+  background: transparent;
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  transition: opacity 0.15s ease;
+  opacity: 0;
+}
+
+.scrollRoot:hover .scrollbar,
+.scrollbar[data-state="visible"] {
+  opacity: 1;
+}
+
+.scrollThumb {
+  background: var(--ef-border-light);
+  border-radius: 3px;
+  flex: 1;
+}
+
+.scrollThumb:hover {
+  background: var(--ef-muted);
+}
+
+/* ── Base UI Separator (operator divider) ─────────────────────────────────── */
+.opSepEl {
+  display: inline-block;
+  width: 1px;
+  background: var(--ef-border-light);
+  align-self: stretch;
+  margin: 0.1rem 0.25rem;
+  border: 0;
+}
+
+@media (max-width: 700px) {
+  .body {
+    grid-template-columns: 1fr;
+  }
+}

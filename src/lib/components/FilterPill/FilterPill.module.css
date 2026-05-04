@@ -1,0 +1,94 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: var(--ef-pill-max-width, none);
+  min-width: 0;
+  background: var(--ef-chip);
+  border: 1px solid var(--ef-border-chip);
+  border-radius: 3px;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  cursor: grab;
+  position: relative;
+  color: var(--ef-text);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  overflow: visible;
+}
+
+.pill:active {
+  cursor: grabbing;
+}
+
+.pill.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.label {
+  min-width: 0;
+}
+
+.truncated {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill.selected {
+  background: var(--ef-chip-selected);
+  border-color: var(--ef-border-chip-selected);
+  box-shadow: var(--ef-shadow-chip-selected);
+}
+
+.pill.invalid {
+  border-color: var(--ef-danger);
+  color: var(--ef-danger);
+  background: var(--ef-invalid-bg);
+}
+
+.deleteBtn {
+  border: 0;
+  background: var(--ef-chip);
+  color: var(--ef-op-text);
+  width: 1rem !important;
+  height: 1rem !important;
+  border-radius: 2px;
+  display: none !important;
+  font-size: 0.7rem;
+  cursor: pointer;
+  position: absolute;
+  right: -0.25rem;
+  top: -0.25rem;
+  line-height: 1;
+  padding: 0 !important;
+}
+
+.pill:hover .deleteBtn {
+  display: inline-grid !important;
+  place-items: center !important;
+}
+
+.toggleBtn {
+  border: 1px solid var(--ef-border-chip-selected);
+  background: var(--ef-chip-selected);
+  color: var(--ef-text);
+  height: 1rem !important;
+  min-width: 2.2rem;
+  border-radius: 999px;
+  display: inline-grid !important;
+  place-items: center !important;
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 0 0.3rem !important;
+  cursor: pointer;
+}
+
+.booleanFieldName {
+  font-weight: 500;
+  opacity: 0.75;
+  font-size: 0.75rem;
+}
