@@ -72,19 +72,47 @@
   place-items: center !important;
 }
 
-.toggleBtn {
-  border: 1px solid var(--ef-border-chip-selected);
-  background: var(--ef-chip-selected);
-  color: var(--ef-text);
-  height: 1rem !important;
-  min-width: 2.2rem;
+.booleanToggleRoot {
+  width: 2.25rem;
+  height: 1rem;
   border-radius: 999px;
-  display: inline-grid !important;
-  place-items: center !important;
-  font-size: 0.65rem;
-  line-height: 1;
-  padding: 0 0.3rem !important;
+  border: 1px solid color-mix(in srgb, #000 12%, transparent);
+  display: inline-flex;
+  align-items: center;
+  padding: 1px;
   cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.booleanToggleOn {
+  background: #16a34a;
+}
+
+.booleanToggleOff {
+  background: #dc2626;
+}
+
+.booleanToggleThumb {
+  width: 0.82rem;
+  height: 0.82rem;
+  border-radius: 999px;
+  background: #fff;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.58rem;
+  font-weight: 700;
+  transition: transform 120ms ease;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #000 10%, transparent);
+}
+
+.booleanToggleThumbOn {
+  transform: translateX(1.2rem);
+  color: #166534;
+}
+
+.booleanToggleThumbOff {
+  transform: translateX(0);
+  color: #991b1b;
 }
 
 .booleanFieldName {

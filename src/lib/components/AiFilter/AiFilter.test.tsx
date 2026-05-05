@@ -589,10 +589,10 @@ describe("AiFilter — pill rendering", () => {
     ];
     const { container } = renderFilter({ pills });
     const pillEl = container.querySelector('[data-ef="pill"]') as HTMLElement;
-    const toggle = container.querySelector('[data-ef="boolean-toggle"]') as HTMLButtonElement;
+    const toggle = container.querySelector('[data-ef="boolean-toggle"]') as HTMLElement;
 
     expect(toggle).toBeTruthy();
-    expect(toggle.textContent?.toLowerCase()).toContain("true");
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
     // Field name label should be visible
     expect(pillEl.textContent?.toLowerCase()).toContain("active");
     // Should NOT show the full "field = value" label text (no operator symbol)
@@ -1214,7 +1214,7 @@ describe("AiFilter — pill editing", () => {
     await user.dblClick(pillEl);
 
     await waitFor(() => {
-      const editInput = container.querySelector('[data-ef="pill"] input');
+      const editInput = container.querySelector('[data-ef="pill"] [data-slot="input"]');
       expect(editInput).toBeNull();
     });
   });
@@ -1227,9 +1227,9 @@ describe("AiFilter — pill editing", () => {
     ];
     const { container } = renderFilter({ pills, onChange });
 
-    const toggle = container.querySelector('[data-ef="boolean-toggle"]') as HTMLButtonElement;
+    const toggle = container.querySelector('[data-ef="boolean-toggle"]') as HTMLElement;
     expect(toggle).toBeTruthy();
-    expect(toggle.textContent?.toLowerCase()).toContain("true");
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
 
     await user.click(toggle);
 
@@ -1240,7 +1240,7 @@ describe("AiFilter — pill editing", () => {
       expect(toggled?.value).toBe(false);
     });
 
-    const editInput = container.querySelector('[data-ef="pill"] input');
+    const editInput = container.querySelector('[data-ef="pill"] [data-slot="input"]');
     expect(editInput).toBeNull();
   });
 });

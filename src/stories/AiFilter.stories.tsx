@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Story } from "@ladle/react";
+import { Switch } from "@base-ui/react/switch";
 import { AiFilter, resolveNlpQuery } from "../lib";
 import type { AgGridApi, FieldDefinition, FilterPill, Hint, ValueResolver } from "../lib";
 import { AgGridReact } from "ag-grid-react";
@@ -35,7 +36,7 @@ const STORY_EXPLANATIONS: Record<string, string> = {
   custom:
     "What it does: introduces a domain-specific custom field with custom operators. How it works: custom operators are declared on the field and translate transforms shorthand values before pill creation.",
   "custom-editor":
-    "What it does: edits pill values with a star picker instead of plain text. How it works: the field's custom editor uses onChange/onCommit/onCancel to integrate with the built-in pill editing lifecycle.",
+    "What it does: edits a boolean value with a BaseUI switch instead of text input. How it works: the field's custom editor toggles between true/false, updates red/green state styling, and commits via the same onChange/onCommit lifecycle.",
   "date-fields":
     "What it does: compares default ISO date handling with a custom date format field. How it works: per-field dateFormat controls parsing/display while single and range hints inject valid date values.",
   "datetime-fields":
@@ -839,39 +840,61 @@ export const CustomEditor: Story = () => (
     id="custom-editor"
     fields={[
       {
-        name: "rating",
-        label: "Rating",
-        type: "integer",
+        name: "active",
+        label: "Active",
+        type: "boolean",
         precedence: 80,
-        operators: ["=", ">=", "<="],
+        operators: ["="],
         hints: [
-          { kind: "single", text: "5 stars", operator: "=", value: 5 },
-          { kind: "range", text: "4-5 stars", from: 4, to: 5 },
+          { kind: "single", text: "is on", operator: "=", value: true },
+          { kind: "single", text: "is off", operator: "=", value: false },
         ],
         editor: ({ value, onChange, onCommit, onCancel }) => (
-          <span style={{ display: "flex", gap: "0.25rem" }}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                style={{
-                  fontSize: "1.25rem",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: Number(value) >= star ? "#f59e0b" : "#d1d5db",
-                }}
-                onClick={() => { onChange(String(star)); onCommit(); }}
-                onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
-              >
-                ★
-              </button>
-            ))}
-          </span>
+          <Switch.Root
+            checked={value === "true"}
+            onCheckedChange={(checked) => {
+              onChange(checked ? "true" : "false");
+              onCommit();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") onCancel();
+            }}
+            aria-label="Toggle active"
+            style={{
+              width: 56,
+              height: 30,
+              borderRadius: 999,
+              border: "1px solid #d1d5db",
+              cursor: "pointer",
+              padding: 2,
+              display: "inline-flex",
+              alignItems: "center",
+              background: value === "true" ? "#16a34a" : "#dc2626",
+              transition: "background-color 120ms ease",
+            }}
+          >
+            <Switch.Thumb
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 999,
+                background: "#ffffff",
+                color: value === "true" ? "#166534" : "#991b1b",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                transform: value === "true" ? "translateX(26px)" : "translateX(0)",
+                transition: "transform 120ms ease",
+              }}
+            >
+              {value === "true" ? "✓" : "✕"}
+            </Switch.Thumb>
+          </Switch.Root>
         ),
       },
     ]}
-    placeholder='Double-click a rating pill to edit with star picker'
+    placeholder='Type: active = true, then double-click value to toggle'
   />
 );
 CustomEditor.storyName = "Custom editor";
@@ -879,7 +902,7 @@ CustomEditor.parameters = {
   docs: {
     description: {
       story:
-        "Demonstrates a custom in-place editor for pill values. The rating field renders a star-picker editor, wiring onChange/onCommit/onCancel to integrate custom UX into the default pill lifecycle.",
+        "Demonstrates a custom in-place editor for boolean pills. The active field uses a BaseUI switch with red/green states and ON/OFF thumb icons, wired to onChange/onCommit/onCancel for the standard pill lifecycle.",
     },
   },
 };
@@ -1660,4 +1683,63 @@ AgGridLargeDataset.parameters = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Stories: Line height variants
+// ---------------------------------------------------------------------------
+
+export const LineHeight12: Story = () => (
+  <div style={{ maxWidth: 720, padding: "1.5rem", lineHeight: 1.2 }}>
+    <FilterDemo id="line-height-12" fields={TASK_FIELDS} />
+  </div>
+);
+LineHeight12.storyName = "Line height 1.2";
+LineHeight12.parameters = {
+  docs: {
+    description: {
+      story: "Renders AiFilter inside a container with line-height: 1.2.",
+    },
+  },
+};
+
+export const LineHeight13: Story = () => (
+  <div style={{ maxWidth: 720, padding: "1.5rem", lineHeight: 1.3 }}>
+    <FilterDemo id="line-height-13" fields={TASK_FIELDS} />
+  </div>
+);
+LineHeight13.storyName = "Line height 1.3";
+LineHeight13.parameters = {
+  docs: {
+    description: {
+      story: "Renders AiFilter inside a container with line-height: 1.3.",
+    },
+  },
+};
+
+export const LineHeight14: Story = () => (
+  <div style={{ maxWidth: 720, padding: "1.5rem", lineHeight: 1.4 }}>
+    <FilterDemo id="line-height-14" fields={TASK_FIELDS} />
+  </div>
+);
+LineHeight14.storyName = "Line height 1.4";
+LineHeight14.parameters = {
+  docs: {
+    description: {
+      story: "Renders AiFilter inside a container with line-height: 1.4.",
+    },
+  },
+};
+
+export const LineHeight15: Story = () => (
+  <div style={{ maxWidth: 720, padding: "1.5rem", lineHeight: 1.5 }}>
+    <FilterDemo id="line-height-15" fields={TASK_FIELDS} />
+  </div>
+);
+LineHeight15.storyName = "Line height 1.5";
+LineHeight15.parameters = {
+  docs: {
+    description: {
+      story: "Renders AiFilter inside a container with line-height: 1.5.",
+    },
+  },
+};
 

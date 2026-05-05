@@ -1,4 +1,5 @@
 import type { CSSProperties, MouseEvent, MutableRefObject } from "react";
+import { Switch } from "@base-ui/react/switch";
 import { GhostButton } from "../ui/GhostButton";
 import { useConfigSelector, useDataSelector, useUiSelector } from "../../context";
 import { normalizePills, pillLabel } from "../../parser";
@@ -62,11 +63,9 @@ export function FilterPill(props: {
     }
   }
 
-  function handleBooleanToggle(e: MouseEvent): void {
-    e.stopPropagation();
+  function handleBooleanToggle(nextValue: boolean): void {
     if (field?.type !== "boolean") return;
     if (pill.kind !== "value") return;
-    const nextValue = !pill.value;
     setPills((prev) =>
       normalizePills(
         prev.map((p) =>
@@ -114,7 +113,8 @@ export function FilterPill(props: {
 
   const defaultLabel = pillLabel(pill, fields);
   const isBooleanValuePill = field?.type === "boolean" && pill.kind === "value";
-  const booleanValueText = isBooleanValuePill ? String(Boolean(pill.value)) : "";
+  const booleanIsOn = isBooleanValuePill ? Boolean(pill.value) : false;
+  const booleanValueText = isBooleanValuePill ? (booleanIsOn ? "on" : "off") : "";
   const renderedLabel =
     field && (pill.kind === "value" || pill.kind === "list" || pill.kind === "range")
       ? field.renderers?.pill?.({
@@ -171,16 +171,22 @@ export function FilterPill(props: {
               <span className={styles.booleanFieldName}>
                 {field?.label ?? field?.name}
               </span>
-              <GhostButton
-                type="button"
-                data-size="icon-sm"
-                className={styles.toggleBtn}
+              <Switch.Root
                 data-ef="boolean-toggle"
                 aria-label={`Toggle ${field?.label ?? field?.name ?? "boolean"} value (currently ${booleanValueText})`}
-                onClick={handleBooleanToggle}
+                checked={booleanIsOn}
+                className={`${styles.booleanToggleRoot} ${booleanIsOn ? styles.booleanToggleOn : styles.booleanToggleOff}`}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onCheckedChange={handleBooleanToggle}
               >
-                {booleanValueText}
-              </GhostButton>
+                <Switch.Thumb
+                  className={`${styles.booleanToggleThumb} ${booleanIsOn ? styles.booleanToggleThumbOn : styles.booleanToggleThumbOff}`}
+                  aria-hidden="true"
+                >
+                  {booleanIsOn ? "|" : "o"}
+                </Switch.Thumb>
+              </Switch.Root>
             </>
           ) : null}
           <GhostButton
