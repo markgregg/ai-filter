@@ -276,6 +276,8 @@ export type AiFilterProps = {
   hintsEnabled?: boolean;
   className?: string;
   placeholder?: string;
+  /** Placeholder text for the AI / natural-language input box. Defaults to "Describe your filter in plain English…". */
+  aiPlaceholder?: string;
   /** AI natural-language filter input. Pass an `AiConfig` with a `resolve` function to enable. */
   ai?: AiConfig | false;
   /**

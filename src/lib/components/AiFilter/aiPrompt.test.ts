@@ -108,6 +108,57 @@ describe("parseFilterResponse", () => {
     expect(pills.length).toBe(1);
   });
 
+  it("passes through AND as a logical connector", () => {
+    const text = "title = hello\nAND\ncount > 5";
+    const pills = parseFilterResponse(text, FIELDS);
+    expect(pills.length).toBe(3);
+    expect(pills[1].kind).toBe("and");
+  });
+
+  it("passes through OR as a logical connector", () => {
+    const text = "title = hello\nOR\ncount > 5";
+    const pills = parseFilterResponse(text, FIELDS);
+    expect(pills.length).toBe(3);
+    expect(pills[1].kind).toBe("or");
+  });
+
+  it("passes through ( and ) as bracket tokens", () => {
+    const text = "(\ntitle = hello\nOR\ncount > 5\n)";
+    const pills = parseFilterResponse(text, FIELDS);
+    expect(pills.length).toBe(5);
+    expect(pills[0].kind).toBe("open-bracket");
+    expect(pills[4].kind).toBe("close-bracket");
+  });
+
+  it("parses a bracketed group combined with an outer clause", () => {
+    const text = "(\nstatus = New\nOR\nstatus = Done\n)\nAND\ntitle = hello";
+    const pills = parseFilterResponse(text, FIELDS);
+    expect(pills.length).toBe(7);
+    expect(pills[0].kind).toBe("open-bracket");
+    expect(pills[1]).toMatchObject({ kind: "value", fieldName: "status", value: "New" });
+    expect(pills[2].kind).toBe("or");
+    expect(pills[3]).toMatchObject({ kind: "value", fieldName: "status", value: "Done" });
+    expect(pills[4].kind).toBe("close-bracket");
+    expect(pills[5].kind).toBe("and");
+    expect(pills[6]).toMatchObject({ kind: "value", fieldName: "title" });
+  });
+
+  it("is case-insensitive for AND / OR / brackets", () => {
+    const text = "(\ntitle = hello\nor\ncount > 5\n)";
+    const pills = parseFilterResponse(text, FIELDS);
+    expect(pills[0].kind).toBe("open-bracket");
+    expect(pills[2].kind).toBe("or");
+    expect(pills[4].kind).toBe("close-bracket");
+  });
+
+  it("prompt mentions AND OR and brackets in instructions", () => {
+    const prompt = buildFilterPrompt("test", FIELDS, {});
+    expect(prompt).toContain("AND");
+    expect(prompt).toContain("OR");
+    expect(prompt).toContain("(");
+    expect(prompt).toContain(")");
+  });
+
   it("returns empty for empty text", () => {
     expect(parseFilterResponse("", FIELDS)).toEqual([]);
   });

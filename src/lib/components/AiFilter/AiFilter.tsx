@@ -43,6 +43,7 @@ import styles from "./AiFilter.module.css";
 function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme" | "matchDropdownMaxHeight" | "suggestionsDropdownSticky" | "hintPanelMaxHeight" | "hintColumns" | "matchRanking" | "hintVirtualized">): JSX.Element {
   const fields = useConfigSelector((s) => s.fields);
   const onClear = useConfigSelector((s) => s.onClear);
+  const aiPlaceholder = useConfigSelector((s) => s.aiPlaceholder);
 
   const pills = useDataSelector((s) => s.pills);
   const setPills = useDataSelector((s) => s.setPills);
@@ -793,7 +794,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
                 value={aiQuery}
                 onChange={(e) => setAiQuery(e.target.value)}
                 onKeyDown={onAiKeyDown}
-                placeholder="Describe your filter in plain English…"
+                placeholder={aiPlaceholder ?? "Describe your filter in plain English…"}
                 disabled={aiLoading}
                 aria-label="AI filter query"
               />

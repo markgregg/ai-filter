@@ -16,6 +16,7 @@ type ConfigState = {
   hintsEnabled: boolean;
   hintFieldSearch: boolean;
   placeholder?: string;
+  aiPlaceholder?: string;
   pillMaxWidth?: string;
   onChange?: (pills: FilterPill[]) => void;
   onClear?: () => void;
@@ -92,6 +93,7 @@ export function AiFilterProvider({
   hintsEnabled = true,
   hintFieldSearch = false,
   placeholder,
+  aiPlaceholder,
   pillMaxWidth,
 }: PropsWithChildren<AiFilterProps>): JSX.Element {
   const [internalPills, setInternalPills] = useState<FilterPill[]>(pills ?? []);
@@ -353,11 +355,12 @@ export function AiFilterProvider({
       hintsEnabled,
       hintFieldSearch,
       placeholder,
+      aiPlaceholder,
       pillMaxWidth,
       onChange,
       onClear,
     }),
-    [id, fields, hintsEnabled, hintFieldSearch, placeholder, pillMaxWidth, onChange, onClear],
+    [id, fields, hintsEnabled, hintFieldSearch, placeholder, aiPlaceholder, pillMaxWidth, onChange, onClear],
   );
 
   const dataValue = useMemo<DataState>(

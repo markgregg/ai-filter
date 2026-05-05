@@ -37,7 +37,7 @@ export function buildFilterPrompt(
     .join("\n");
 
   // Keep the prompt as short as possible — prefill time is linear with tokens.
-  return `Convert the query to filter expressions. Rules: one per line, format "fieldName operator value", exact field names, no explanations.
+  return `Convert the query to filter expressions. Rules: one expression per line, format "fieldName operator value". Use AND, OR, ( and ) on their own lines for logical grouping. Exact field names only, no explanations.
 Fields:
 ${fieldLines}
 Query: ${query}
@@ -49,12 +49,14 @@ export function parseFilterResponse(
   fields: FieldDefinition[],
   options?: NlpResolveOptions,
 ): FilterPill[] {
+  const LOGICAL_TOKEN_RE = /^(AND|OR|\(|\))$/i;
+
   const lines = text
     .split("\n")
     .map((l) => l.trim())
     .map((l) => l.replace(/^\d+[.)]\s*/, ""))
     .filter((l) => l && !l.startsWith("```") && !l.startsWith("#") && !l.startsWith("//"))
-    .filter((l) => l.includes(" "));
+    .filter((l) => l.includes(" ") || LOGICAL_TOKEN_RE.test(l));
 
   const pills: FilterPill[] = [];
   for (const line of lines) {
