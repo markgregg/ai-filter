@@ -630,6 +630,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
     const next = `${prefix} ${String(operator)} `;
     setActiveField(field.name);
     setInputValue(next);
+    setInsertIndex(pills.length);
     showAndFocusInput();
   }
 
@@ -653,6 +654,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
       setInputValue(`${inputValue.trimEnd()}${separator}${field.name} `);
     }
     setActiveField(field.name);
+    setInsertIndex(pills.length);
     showAndFocusInput();
   }
 
@@ -717,6 +719,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
       setFocused(false);
       setSelectedIds([]);
       setEditingId(undefined);
+      setInsertIndex(pills.length);
       requestAnimationFrame(() => {
         const el = pillsAreaRef.current;
         if (el) el.scrollLeft = el.scrollWidth;
