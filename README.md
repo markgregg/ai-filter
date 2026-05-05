@@ -514,7 +514,7 @@ The package exports:
 - `resolveNlpQuery`
 - `resolveOperatorAlias`
 - `resolveDatePhrase`
-- NLP types such as `NlpResolveOptions`, `ValueResolver`, `ValueResolverContext`, and `DateResolution`
+- NLP types: `NlpResolveOptions`, `ValueResolver`, `ValueResolverContext`, `DateResolution`
 
 ### `resolveNlpExpression`
 
@@ -528,18 +528,20 @@ const pill = resolveNlpExpression("status one of New, Done", fields);
 
 Examples it supports:
 
-- `cost > 10`
-- `cost greater than 10`
-- `status is active`
-- `created last week`
-- `name contains smith`
-- `price between 10 and 50`
-- `category one of Books, Food`
-- `(`, `)`, `AND`, `OR`
+| Input | Result |
+| --- | --- |
+| `cost > 10` | `ValuePill { fieldName: "cost", operator: ">", value: 10 }` |
+| `cost greater than 10` | same (word-alias for `>`) |
+| `status is active` | `ValuePill { fieldName: "status", operator: "=", value: "active" }` |
+| `created last week` | `RangePill { fieldName: "created", from: …, to: … }` |
+| `name contains smith` | `ValuePill { fieldName: "name", operator: "*", value: "smith" }` |
+| `price between 10 and 50` | `RangePill { fieldName: "price", from: 10, to: 50 }` |
+| `category one of Books, Food` | `ListPill { fieldName: "category", operator: "in", values: ["Books","Food"] }` |
+| `AND` / `OR` / `(` / `)` | logical connector pills |
 
 ### `resolveNlpQuery`
 
-Resolves a full query string into `FilterPill[]`.
+Resolves a full multi-clause query into `FilterPill[]`.
 
 ```ts
 import { resolveNlpQuery } from "ai-filter";
@@ -550,56 +552,233 @@ const pills = resolveNlpQuery(
 );
 ```
 
-It supports:
+Supported features:
 
-- `and` / `or`
-- brackets `(` and `)`
-- comma-separated clauses as implicit `AND`
-- range phrases like `between X and Y`
-- list phrases like `one of A, B, C`
+- `and` / `or` connectors (case-insensitive)
+- brackets `(` and `)` for grouping
+- comma-separated clauses treated as implicit `AND`
+- range phrases: `between X and Y`, `from X to Y`
+- list phrases: `one of A, B, C`, `in A, B, C`
+- **context carry-over** for non-list fields: bare values after `or` or `,` inherit the preceding field and operator
+
+  ```
+  "title is foo or bar"      → title=foo OR title=bar
+  "title is foo, bar, baz"   → title=foo OR title=bar OR title=baz
+  "count > 5 or 10"          → count>5  OR count>10
+  ```
 
 ### `NlpResolveOptions`
 
 | Property | Type | Description |
 | --- | --- | --- |
 | `valueResolvers` | `ValueResolver[]` | Custom value parsers tried before built-in parsing. |
-| `fallbackToHighestPrecedence` | `boolean` | When no field token matches, choose a fallback field instead of returning `undefined`. Defaults to `true`. |
-| `setValuesByField` | `Record<string, string[]>` | Preloaded set values used for inferring fields and validating set-field NLP output. |
+| `fallbackToHighestPrecedence` | `boolean` | When no field token matches, choose the highest-precedence field as fallback. Defaults to `true`. |
+| `setValuesByField` | `Record<string, string[]>` | Pre-loaded set values for field inference and set-value validation when `setValues` is async. |
 
-### `ValueResolver`
+---
+
+## Extending the NLP resolver
+
+### Overview
+
+The NLP resolver uses a `valueResolvers` extension point — an ordered list of custom parsers that run **before** the built-in type parsers. Return the parsed value (or `undefined` to fall through to the next resolver in the chain).
 
 ```ts
 type ValueResolver = {
-  fieldName?: string;
+  fieldName?: string;  // omit to match all fields
   resolve: (ctx: ValueResolverContext) => unknown | undefined;
+};
+
+type ValueResolverContext = {
+  field: FieldDefinition;
+  rawValue: string;   // the raw text from the input
+  operator: AnyOperator;
 };
 ```
 
-Use this when a field accepts domain-specific input.
-
-Example:
+Extensions are passed via `NlpResolveOptions`:
 
 ```ts
-import { resolveNlpExpression } from "ai-filter";
+resolveNlpQuery(query, fields, { valueResolvers: [myResolver] });
+```
 
-const pill = resolveNlpExpression("eta in 2 weeks", fields, {
+When wired through `ai.resolve`, pass them from inside your resolver function:
+
+```ts
+const ai: AiConfig = {
+  resolve: async (prompt) => {
+    const query = extractQueryFromPrompt(prompt);
+    const pills = resolveNlpQuery(query, fields, {
+      valueResolvers: [myResolver],
+    });
+    return pillsToExpressionLines(pills);
+  },
+};
+```
+
+---
+
+### Extension example 1 — shorthand date offsets
+
+Accept `Nd` / `Nw` / `Nm` shorthand on date fields (`3d` = 3 days from now, `2w` = 2 weeks, `1m` = 1 month).
+
+```ts
+import { resolveNlpExpression, type ValueResolver } from "ai-filter";
+
+const dueDateResolver: ValueResolver = {
+  fieldName: "due",  // only runs for the "due" field
+  resolve: ({ rawValue }) => {
+    const match = rawValue.match(/^(\d+)([dwm])$/i);
+    if (!match) return undefined;  // fall through to built-in parser
+
+    const n = Number(match[1]);
+    const unit = match[2].toLowerCase();
+    const d = new Date();
+    if (unit === "d") d.setDate(d.getDate() + n);
+    else if (unit === "w") d.setDate(d.getDate() + n * 7);
+    else if (unit === "m") d.setMonth(d.getMonth() + n);
+    return d.toISOString().slice(0, 10);  // return an ISO date string
+  },
+};
+
+// "due in 3d" → ValuePill { fieldName: "due", operator: "=", value: "2026-05-08" }
+const pill = resolveNlpExpression("due in 3d", fields, {
+  valueResolvers: [dueDateResolver],
+});
+```
+
+**How it works:**
+
+1. `resolveNlpExpression` tokenises the input to `{ fieldToken: "due", operatorToken: "in", valueToken: "3d" }`.
+2. Before the built-in date parser runs, `dueDateResolver.resolve` is called with `rawValue = "3d"`.
+3. The regex matches and returns an ISO date string — the built-in is skipped.
+4. Return `undefined` for anything that doesn't match and the built-in parser handles it normally.
+
+---
+
+### Extension example 2 — currency codes
+
+A `price` field that accepts `USD`, `EUR`, `GBP` as stand-ins for numeric ranges.
+
+```ts
+const CURRENCY_RANGES: Record<string, [number, number]> = {
+  usd: [0, 100],
+  eur: [0, 85],
+  gbp: [0, 75],
+};
+
+const priceRangeResolver: ValueResolver = {
+  fieldName: "price",
+  resolve: ({ rawValue, field, operator }) => {
+    // Only handle when the operator implies equality / unknown context
+    if (operator !== "=" && operator !== "*") return undefined;
+    const range = CURRENCY_RANGES[rawValue.toLowerCase()];
+    if (!range) return undefined;
+    // Returning an object here makes the pill's value an object —
+    // a real implementation would return a RangePill from a helper instead.
+    // For demonstration, return the lower bound as a number:
+    return range[0];
+  },
+};
+```
+
+---
+
+### Extension example 3 — global unit normalisation
+
+Strip currency symbols and convert `k` / `M` suffixes for **all** numeric fields (no `fieldName` specified = runs for every field).
+
+```ts
+import { type ValueResolver } from "ai-filter";
+
+const numericNormalizer: ValueResolver = {
+  // No fieldName — runs for every field before built-in parsers
+  resolve: ({ rawValue, field }) => {
+    if (field.type !== "integer" && field.type !== "float") return undefined;
+
+    const cleaned = rawValue.replace(/[$€£,\s]/g, "");
+    const match = cleaned.match(/^([\d.]+)([km]?)$/i);
+    if (!match) return undefined;
+
+    const base = parseFloat(match[1]);
+    if (isNaN(base)) return undefined;
+
+    const suffix = match[2].toLowerCase();
+    if (suffix === "k") return base * 1_000;
+    if (suffix === "m") return base * 1_000_000;
+    return base;
+  },
+};
+
+// "revenue > $1.5M" → ValuePill { fieldName: "revenue", operator: ">", value: 1500000 }
+// "budget < 50k"    → ValuePill { fieldName: "budget",  operator: "<", value: 50000 }
+const pills = resolveNlpQuery("revenue > $1.5M and budget < 50k", fields, {
+  valueResolvers: [numericNormalizer],
+});
+```
+
+**How it works:**
+
+- Because no `fieldName` is set, `numericNormalizer.resolve` is invoked for every field, but it immediately returns `undefined` when the field type isn't numeric — so non-numeric fields are unaffected.
+- The resolver strips symbols, parses the base number, and multiplies by the scale suffix.
+- Returning a `number` short-circuits the built-in parser for that field.
+
+---
+
+### Extension example 4 — multiple resolvers in order
+
+Resolvers are tried in the order they appear in the array; the first to return a non-`undefined` value wins.
+
+```ts
+const pills = resolveNlpQuery(query, fields, {
   valueResolvers: [
-    {
-      fieldName: "eta",
-      resolve: ({ rawValue }) => {
-        const match = rawValue.match(/^in\s+(\d+)\s+weeks?$/i);
-        if (!match) return undefined;
-
-        const d = new Date();
-        d.setDate(d.getDate() + Number(match[1]) * 7);
-        return d.toISOString();
-      },
-    },
+    dueDateResolver,      // runs first — handles "3d", "2w", "1m" on "due"
+    numericNormalizer,    // runs next  — strips currency symbols on numeric fields
+    // built-in parsers run last automatically
   ],
 });
 ```
 
-### NLP examples
+---
+
+### Using `resolveOperatorAlias`
+
+Converts a text alias to its canonical symbol operator — useful for building your own parsers or validating user input before constructing a pill manually.
+
+```ts
+import { resolveOperatorAlias } from "ai-filter";
+
+resolveOperatorAlias("greater than")  // → ">"
+resolveOperatorAlias("contains")      // → "*"
+resolveOperatorAlias("not one of")    // → "!"
+resolveOperatorAlias(">=")            // → ">="
+resolveOperatorAlias("unknown")       // → undefined
+```
+
+---
+
+### Using `resolveDatePhrase`
+
+Converts a natural-language date phrase to an ISO string (and optional range end). Useful in custom resolvers or for pre-processing user input.
+
+```ts
+import { resolveDatePhrase } from "ai-filter";
+
+resolveDatePhrase("today")       // → { value: "2026-05-05" }
+resolveDatePhrase("last week")   // → { value: "2026-04-27", rangeEnd: "2026-05-03" }
+resolveDatePhrase("next month")  // → { value: "2026-06-01", rangeEnd: "2026-06-30" }
+resolveDatePhrase("2026-03-15")  // → undefined  (not a phrase — handled by built-in)
+
+// Pass forDatetime=true to get full datetime strings
+resolveDatePhrase("yesterday", true)
+// → { value: "2026-05-04 00:00:00", rangeEnd: "2026-05-04 23:59:59" }
+```
+
+When `rangeEnd` is present, the resolver may produce a `RangePill` instead of a `ValuePill`.
+
+---
+
+### NLP quick-reference
 
 #### Basic expressions
 
@@ -623,25 +802,66 @@ resolveNlpExpression("due between 2026-05-01 and 2026-05-31", fields);
 resolveNlpQuery("status = Done and priority >= 2", fields);
 resolveNlpQuery("(status = New or status = Blocked) and assignee contains sam", fields);
 resolveNlpQuery("price between 10 and 20, category one of Books, Food", fields);
+// Context carry-over (non-list fields):
+resolveNlpQuery("title is foo or bar", fields);     // title=foo OR title=bar
+resolveNlpQuery("count > 5 or 10", fields);         // count>5 OR count>10
+resolveNlpQuery("title is foo, bar, baz", fields);  // title=foo OR title=bar OR title=baz
 ```
+
+---
 
 ### AI mode and NLP
 
 When `ai.resolve()` is provided, the component:
 
-1. builds a prompt from your field definitions and currently known set values
-2. sends that prompt to your resolver
-3. parses each returned line with `resolveNlpExpression`
-4. inserts the resulting pills into the filter
+1. Builds a structured prompt from your field definitions and currently known set values.
+2. Sends that prompt to your resolver function.
+3. Parses each returned line with `resolveNlpExpression`.
+4. Inserts the resulting pills into the filter.
 
-Your AI backend should therefore return plain filter expressions, not JSON.
-
-Example output expected from the model:
+Your AI backend should return plain filter expressions — one per line — not JSON.
 
 ```txt
 status = Done
 priority >= 3
 title * login
+```
+
+To use a local NLP resolver as the AI backend (no network required):
+
+```ts
+import { resolveNlpQuery, type AiConfig } from "ai-filter";
+
+const ai: AiConfig = {
+  resolve: async (prompt: string): Promise<string> => {
+    // The prompt ends with "Query: <user text>"
+    const query = prompt.match(/^Query:\s*(.+)$/m)?.[1]?.trim() ?? "";
+    if (!query) return "";
+
+    const pills = resolveNlpQuery(query, fields, {
+      valueResolvers: [dueDateResolver, numericNormalizer],
+    });
+
+    return pills
+      .map((pill) => {
+        if (pill.kind === "and") return "AND";
+        if (pill.kind === "or") return "OR";
+        if (pill.kind === "open-bracket") return "(";
+        if (pill.kind === "close-bracket") return ")";
+        if (pill.kind === "value")
+          return `${pill.fieldName} ${pill.operator} ${String(pill.value)}`;
+        if (pill.kind === "range")
+          return `${pill.fieldName} from ${String(pill.from)} to ${String(pill.to)}`;
+        if (pill.kind === "list")
+          return `${pill.fieldName} in ${(pill.values as unknown[]).map(String).join(",")}`;
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  },
+};
+
+<AiFilter fields={fields} pills={pills} onChange={setPills} ai={ai} />
 ```
 
 ## Custom rendering and custom editors

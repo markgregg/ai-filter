@@ -57,6 +57,12 @@ const STORY_EXPLANATIONS: Record<string, string> = {
     "What it does: stress-tests AG Grid integration with thousands of rows and dozens of generated columns. How it works: column definitions and row data are generated once with stable memoization, AiFilter derives fields from the live Grid API, and external filtering is applied against the full dataset.",
   "hint-field-search":
     "What it does: shows a search input above the hint panel field list. How it works: hintFieldSearch=true adds a text box that filters the visible fields by name or label as the user types, making it easy to find the right field in a long list.",
+  "nlp-date-shorthand":
+    "What it does: adds shorthand date offsets (3d, 2w, 1m) to a date field via a ValueResolver. How it works: the resolver runs before the built-in parser; when it matches the shorthand pattern it converts the value to an ISO date and the built-in is skipped. Return undefined to fall through to normal parsing.",
+  "nlp-numeric-normaliser":
+    "What it does: strips currency symbols and expands k/M suffixes on all numeric fields via a global ValueResolver. How it works: a single resolver with no fieldName is invoked for every field; it returns undefined immediately for non-numeric fields so they are unaffected, and returns the normalised number for numeric ones.",
+  "nlp-resolver-chain":
+    "What it does: combines two ValueResolvers in a chain — date shorthand and numeric normalisation — and applies them together in a local NLP ai.resolve pipeline. How it works: resolvers are tried in array order; the first to return a non-undefined value wins. The local resolver converts pills to expression lines that the AI-mode pipeline then parses into pills.",
 };
 
 function StoryExplanation({ text }: { text: string }): JSX.Element {
@@ -1867,6 +1873,545 @@ HintFieldSearch.parameters = {
     description: {
       story:
         "Demonstrates the hintFieldSearch property. When enabled, a search input appears at the top of the hint panel field column. Typing into it filters the visible fields in real time, making large field lists easy to navigate.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// NLP resolver extension stories
+// ---------------------------------------------------------------------------
+
+// Shared fields used by the NLP extension stories
+const NLP_EXT_FIELDS: FieldDefinition[] = [
+  { name: "title",   label: "Title",    type: "string",  precedence: 10 },
+  { name: "priority",label: "Priority", type: "integer", precedence: 20,
+    hints: [
+      { kind: "single", text: "critical (1)", operator: "=", value: 1 },
+      { kind: "single", text: "high (2)",     operator: "=", value: 2 },
+      { kind: "single", text: "low (≥4)",     operator: ">=", value: 4 },
+    ],
+  },
+  { name: "budget",  label: "Budget ($)", type: "float",   precedence: 30 },
+  { name: "revenue", label: "Revenue ($)", type: "float",   precedence: 40 },
+  { name: "due",     label: "Due Date",   type: "date",    precedence: 50 },
+  { name: "status",  label: "Status",    type: "set",     precedence: 60,
+    setValues: ["New", "In Progress", "Blocked", "Done"],
+    hints: "fieldValues",
+  },
+];
+
+/** Convert a pill array to expression lines for the AI pipeline. */
+function pillsToLines(pills: FilterPill[]): string {
+  return pills
+    .map((pill) => {
+      if (pill.kind === "and") return "AND";
+      if (pill.kind === "or")  return "OR";
+      if (pill.kind === "open-bracket")  return "(";
+      if (pill.kind === "close-bracket") return ")";
+      if (pill.kind === "value")
+        return `${pill.fieldName} ${pill.operator} ${String(pill.value)}`;
+      if (pill.kind === "range")
+        return `${pill.fieldName} from ${String(pill.from)} to ${String(pill.to)}`;
+      if (pill.kind === "list")
+        return `${pill.fieldName} in ${(pill.values as unknown[]).map(String).join(",")}`;
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Story: ValueResolver — shorthand date offsets
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolver that converts Nd / Nw / Nm shorthand into ISO dates on the
+ * "due" field only.  Return undefined for anything else so the built-in
+ * date parser handles it.
+ */
+const dueDateShorthandResolver: ValueResolver = {
+  fieldName: "due",
+  resolve: ({ rawValue }) => {
+    const match = rawValue.match(/^(\d+)([dwm])$/i);
+    if (!match) return undefined;
+    const n = Number(match[1]);
+    const unit = match[2].toLowerCase();
+    const d = new Date();
+    if (unit === "d") d.setDate(d.getDate() + n);
+    else if (unit === "w") d.setDate(d.getDate() + n * 7);
+    else if (unit === "m") d.setMonth(d.getMonth() + n);
+    return d.toISOString().slice(0, 10);
+  },
+};
+
+export const NlpDateShorthand: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+  const [query, setQuery] = useState("");
+  const [result, setResult] = useState("");
+
+  const runQuery = useCallback(() => {
+    const resolved = resolveNlpQuery(query, NLP_EXT_FIELDS, {
+      valueResolvers: [dueDateShorthandResolver],
+    });
+    setPills(resolved);
+    setResult(
+      resolved
+        .map((p) =>
+          p.kind === "value"
+            ? `${p.fieldName} ${p.operator} ${String(p.value)}`
+            : p.kind === "range"
+            ? `${p.fieldName} from ${String(p.from)} to ${String(p.to)}`
+            : p.kind,
+        )
+        .join(" | "),
+    );
+  }, [query]);
+
+  const localConfig = useMemo(
+    () => ({
+      resolve: async (prompt: string): Promise<string> => {
+        const q = prompt.match(/^Query:\s*(.+)$/m)?.[1]?.trim() ?? "";
+        if (!q) return "";
+        return pillsToLines(resolveNlpQuery(q, NLP_EXT_FIELDS, {
+          valueResolvers: [dueDateShorthandResolver],
+        }));
+      },
+    }),
+    [],
+  );
+
+  return (
+    <div style={{ maxWidth: 760, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS["nlp-date-shorthand"]} />
+
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#374151" }}>
+        <strong>ValueResolver:</strong> converts <code>Nd</code> / <code>Nw</code> / <code>Nm</code>{" "}
+        shorthand into ISO dates on the <em>due</em> field.
+        Anything that doesn't match falls through to the built-in date parser.
+      </p>
+
+      <p style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Use the input below to try the resolver directly, or type in the AI filter box above.
+      </p>
+
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && runQuery()}
+          placeholder="e.g. due in 3d  or  due > 2026-01-01"
+          style={{
+            flex: 1,
+            padding: "0.4rem 0.6rem",
+            fontSize: "0.8rem",
+            border: "1px solid #d1d5db",
+            borderRadius: 4,
+          }}
+        />
+        <button
+          onClick={runQuery}
+          style={{
+            padding: "0.4rem 0.9rem",
+            fontSize: "0.8rem",
+            background: "#2563eb",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+          }}
+        >
+          Resolve
+        </button>
+      </div>
+
+      {result && (
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            background: "#f0fdf4",
+            border: "1px solid #86efac",
+            borderRadius: 4,
+            fontSize: "0.8rem",
+            fontFamily: "monospace",
+            color: "#166534",
+          }}
+        >
+          {result}
+        </div>
+      )}
+
+      <p style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Or try the AI filter box (same resolver wired in):
+      </p>
+      <AiFilter
+        id="nlp-date-shorthand"
+        fields={NLP_EXT_FIELDS}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => { setPills([]); setResult(""); }}
+        ai={localConfig}
+        aiPlaceholder="e.g. due in 3d and status is New…"
+      />
+
+      <p style={{ marginTop: "1rem", marginBottom: "0.4rem", fontSize: "0.75rem", color: "#9ca3af" }}>
+        Try inputs: <code>due in 3d</code>, <code>due &gt; 2w</code>, <code>due &lt; 1m</code>,
+        <code>due today</code> (built-in phrase), <code>due = 2026-06-01</code> (ISO — built-in)
+      </p>
+      <pre
+        style={{
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+NlpDateShorthand.storyName = "NLP extension — date shorthand resolver";
+NlpDateShorthand.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates a per-field ValueResolver that extends date parsing with shorthand offsets (3d, 2w, 1m). The resolver returns undefined for unrecognised input so the built-in date phrase parser handles everything else.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: ValueResolver — global numeric normaliser (currency symbols + k/M)
+// ---------------------------------------------------------------------------
+
+/**
+ * Global resolver (no fieldName) that strips currency symbols and expands
+ * k / M suffixes on all numeric fields.
+ */
+const numericNormaliser: ValueResolver = {
+  resolve: ({ rawValue, field }) => {
+    if (field.type !== "integer" && field.type !== "float") return undefined;
+    const cleaned = rawValue.replace(/[$€£,\s]/g, "");
+    const match = cleaned.match(/^([\d.]+)([km]?)$/i);
+    if (!match) return undefined;
+    const base = parseFloat(match[1]);
+    if (isNaN(base)) return undefined;
+    const suffix = match[2].toLowerCase();
+    if (suffix === "k") return base * 1_000;
+    if (suffix === "m") return base * 1_000_000;
+    return base;
+  },
+};
+
+export const NlpNumericNormaliser: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+  const [query, setQuery] = useState("");
+  const [result, setResult] = useState("");
+
+  const runQuery = useCallback(() => {
+    const resolved = resolveNlpQuery(query, NLP_EXT_FIELDS, {
+      valueResolvers: [numericNormaliser],
+    });
+    setPills(resolved);
+    setResult(
+      resolved
+        .map((p) =>
+          p.kind === "value"
+            ? `${p.fieldName} ${p.operator} ${String(p.value)}`
+            : p.kind === "range"
+            ? `${p.fieldName} from ${String(p.from)} to ${String(p.to)}`
+            : p.kind,
+        )
+        .join(" | "),
+    );
+  }, [query]);
+
+  const localConfig = useMemo(
+    () => ({
+      resolve: async (prompt: string): Promise<string> => {
+        const q = prompt.match(/^Query:\s*(.+)$/m)?.[1]?.trim() ?? "";
+        if (!q) return "";
+        return pillsToLines(resolveNlpQuery(q, NLP_EXT_FIELDS, {
+          valueResolvers: [numericNormaliser],
+        }));
+      },
+    }),
+    [],
+  );
+
+  return (
+    <div style={{ maxWidth: 760, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS["nlp-numeric-normaliser"]} />
+
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#374151" }}>
+        <strong>ValueResolver (global):</strong> no <code>fieldName</code> — runs for every
+        field. Non-numeric fields are skipped (return <code>undefined</code>).
+        Currency symbols are stripped; <code>k</code> / <code>M</code> suffixes are expanded.
+      </p>
+
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && runQuery()}
+          placeholder="e.g. budget < $50k  or  revenue > 1.5M"
+          style={{
+            flex: 1,
+            padding: "0.4rem 0.6rem",
+            fontSize: "0.8rem",
+            border: "1px solid #d1d5db",
+            borderRadius: 4,
+          }}
+        />
+        <button
+          onClick={runQuery}
+          style={{
+            padding: "0.4rem 0.9rem",
+            fontSize: "0.8rem",
+            background: "#2563eb",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+          }}
+        >
+          Resolve
+        </button>
+      </div>
+
+      {result && (
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            background: "#f0fdf4",
+            border: "1px solid #86efac",
+            borderRadius: 4,
+            fontSize: "0.8rem",
+            fontFamily: "monospace",
+            color: "#166534",
+          }}
+        >
+          {result}
+        </div>
+      )}
+
+      <p style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Or try the AI filter box:
+      </p>
+      <AiFilter
+        id="nlp-numeric-normaliser"
+        fields={NLP_EXT_FIELDS}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => { setPills([]); setResult(""); }}
+        ai={localConfig}
+        aiPlaceholder="e.g. budget < $50k and revenue > 1.5M…"
+      />
+
+      <p style={{ marginTop: "1rem", marginBottom: "0.4rem", fontSize: "0.75rem", color: "#9ca3af" }}>
+        Try: <code>budget &lt; $50k</code>, <code>revenue &gt; 1.5M</code>,
+        <code>priority &gt; 2</code> (plain integer, built-in),
+        <code>title contains bug</code> (string — normaliser skips it)
+      </p>
+      <pre
+        style={{
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+NlpNumericNormaliser.storyName = "NLP extension — numeric normaliser";
+NlpNumericNormaliser.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates a global ValueResolver (no fieldName) that strips currency symbols and expands k/M suffixes on all numeric fields. Non-numeric fields receive undefined and fall through to built-in parsers, so string and set fields are completely unaffected.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: ValueResolver chain — date shorthand + numeric normaliser combined
+// ---------------------------------------------------------------------------
+
+export const NlpResolverChain: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+  const [query, setQuery] = useState("");
+  const [resolverLog, setResolverLog] = useState<string[]>([]);
+
+  // Instrumented versions that log which resolver handled each value
+  const loggingDateResolver: ValueResolver = useMemo(
+    () => ({
+      fieldName: "due",
+      resolve: ({ rawValue }) => {
+        const match = rawValue.match(/^(\d+)([dwm])$/i);
+        if (!match) return undefined;
+        const n = Number(match[1]);
+        const unit = match[2].toLowerCase();
+        const d = new Date();
+        if (unit === "d") d.setDate(d.getDate() + n);
+        else if (unit === "w") d.setDate(d.getDate() + n * 7);
+        else if (unit === "m") d.setMonth(d.getMonth() + n);
+        const iso = d.toISOString().slice(0, 10);
+        setResolverLog((log) => [...log, `date-shorthand: "${rawValue}" → "${iso}"   (due field)`]);
+        return iso;
+      },
+    }),
+    [],
+  );
+
+  const loggingNumericResolver: ValueResolver = useMemo(
+    () => ({
+      resolve: ({ rawValue, field }) => {
+        if (field.type !== "integer" && field.type !== "float") return undefined;
+        const cleaned = rawValue.replace(/[$€£,\s]/g, "");
+        const match = cleaned.match(/^([\d.]+)([km]?)$/i);
+        if (!match) return undefined;
+        const base = parseFloat(match[1]);
+        if (isNaN(base)) return undefined;
+        const suffix = match[2].toLowerCase();
+        const value = suffix === "k" ? base * 1_000 : suffix === "m" ? base * 1_000_000 : base;
+        setResolverLog((log) => [...log, `numeric-normaliser: "${rawValue}" → ${value}   (${field.name} field)`]);
+        return value;
+      },
+    }),
+    [],
+  );
+
+  const resolvers = useMemo(
+    () => [loggingDateResolver, loggingNumericResolver],
+    [loggingDateResolver, loggingNumericResolver],
+  );
+
+  const runQuery = useCallback(() => {
+    setResolverLog([]);
+    const resolved = resolveNlpQuery(query, NLP_EXT_FIELDS, { valueResolvers: resolvers });
+    setPills(resolved);
+  }, [query, resolvers]);
+
+  const localConfig = useMemo(
+    () => ({
+      resolve: async (prompt: string): Promise<string> => {
+        const q = prompt.match(/^Query:\s*(.+)$/m)?.[1]?.trim() ?? "";
+        if (!q) return "";
+        setResolverLog([]);
+        return pillsToLines(resolveNlpQuery(q, NLP_EXT_FIELDS, { valueResolvers: resolvers }));
+      },
+    }),
+    [resolvers],
+  );
+
+  return (
+    <div style={{ maxWidth: 760, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS["nlp-resolver-chain"]} />
+
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#374151" }}>
+        <strong>Resolver chain:</strong> <code>[dueDateShorthand, numericNormaliser]</code>.
+        The first resolver to return a non-<code>undefined</code> value wins.
+        A resolver log below shows which one handled each value.
+      </p>
+
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && runQuery()}
+          placeholder="e.g. due in 2w and budget < $50k and priority > 2"
+          style={{
+            flex: 1,
+            padding: "0.4rem 0.6rem",
+            fontSize: "0.8rem",
+            border: "1px solid #d1d5db",
+            borderRadius: 4,
+          }}
+        />
+        <button
+          onClick={runQuery}
+          style={{
+            padding: "0.4rem 0.9rem",
+            fontSize: "0.8rem",
+            background: "#2563eb",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+          }}
+        >
+          Resolve
+        </button>
+      </div>
+
+      {resolverLog.length > 0 && (
+        <div
+          style={{
+            marginBottom: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            background: "#fff7ed",
+            border: "1px solid #fdba74",
+            borderRadius: 4,
+            fontSize: "0.78rem",
+            fontFamily: "monospace",
+            color: "#9a3412",
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: "0.3rem", fontFamily: "sans-serif" }}>Resolver log</div>
+          {resolverLog.map((entry, i) => (
+            <div key={i}>{entry}</div>
+          ))}
+        </div>
+      )}
+
+      <p style={{ marginBottom: "0.5rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Or use the AI filter box (same resolver chain):
+      </p>
+      <AiFilter
+        id="nlp-resolver-chain"
+        fields={NLP_EXT_FIELDS}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => { setPills([]); setResolverLog([]); }}
+        ai={localConfig}
+        aiPlaceholder="e.g. due in 2w and budget < $50k and priority > 2…"
+      />
+
+      <p style={{ marginTop: "1rem", marginBottom: "0.4rem", fontSize: "0.75rem", color: "#9ca3af" }}>
+        Try: <code>due in 2w and budget &lt; $50k and priority &gt; 2</code>
+        &nbsp;·&nbsp; <code>due today and revenue &gt; 1.5M</code>
+        &nbsp;·&nbsp; <code>title contains login</code> (neither resolver fires)
+      </p>
+      <pre
+        style={{
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+NlpResolverChain.storyName = "NLP extension — resolver chain";
+NlpResolverChain.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates chaining two ValueResolvers. The date-shorthand resolver runs first and handles Nd/Nw/Nm on the due field; the numeric normaliser runs next and expands currency symbols and k/M suffixes on all numeric fields. A live resolver log shows which resolver handled each value in real time.",
     },
   },
 };
