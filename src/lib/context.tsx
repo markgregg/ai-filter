@@ -14,6 +14,7 @@ type ConfigState = {
   id?: string;
   fields: FieldDefinition[];
   hintsEnabled: boolean;
+  hintFieldSearch: boolean;
   placeholder?: string;
   pillMaxWidth?: string;
   onChange?: (pills: FilterPill[]) => void;
@@ -89,6 +90,7 @@ export function AiFilterProvider({
   onChange,
   onClear,
   hintsEnabled = true,
+  hintFieldSearch = false,
   placeholder,
   pillMaxWidth,
 }: PropsWithChildren<AiFilterProps>): JSX.Element {
@@ -349,12 +351,13 @@ export function AiFilterProvider({
       id,
       fields,
       hintsEnabled,
+      hintFieldSearch,
       placeholder,
       pillMaxWidth,
       onChange,
       onClear,
     }),
-    [id, fields, hintsEnabled, placeholder, pillMaxWidth, onChange, onClear],
+    [id, fields, hintsEnabled, hintFieldSearch, placeholder, pillMaxWidth, onChange, onClear],
   );
 
   const dataValue = useMemo<DataState>(

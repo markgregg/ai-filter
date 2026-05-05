@@ -153,6 +153,8 @@ type BaseFieldDefinition = {
   name: string;
   label?: string;
   precedence: number;
+  /** Controls the position of this field in the hint panel field list. Lower numbers appear first. Fields without this property are sorted after those that have it, preserving their original order. */
+  hintOrder?: number;
   maxInstances?: number;
   hints?: HintSource;
   hintsDebounceMs?: number;
@@ -314,6 +316,12 @@ export type AiFilterProps = {
    * Defaults to `false`.
    */
   hintVirtualized?: boolean;
+  /**
+   * When true, shows a search text box at the top of the hint panel field list.
+   * Typing into it filters the visible fields by name or label (case-insensitive).
+   * Defaults to `false`.
+   */
+  hintFieldSearch?: boolean;
   /**
    * Maximum width for each rendered pill (e.g. `"14rem"`, `"220px"`).
    * When set, long pill text is truncated with an ellipsis.

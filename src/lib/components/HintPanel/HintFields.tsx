@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { GhostButton } from "../ui/GhostButton";
 import { ScrollArea } from "@base-ui/react/scroll-area";
 import { useConfigSelector, useDataSelector } from "../../context";
@@ -76,7 +76,21 @@ function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
 }
 
 export function HintFields(): JSX.Element {
-  const fields = useConfigSelector((s) => s.fields);
+  const rawFields = useConfigSelector((s) => s.fields);
+  const hintFieldSearch = useConfigSelector((s) => s.hintFieldSearch);
+  const [searchText, setSearchText] = useState("");
+
+  const fields = useMemo(() => {
+    const sorted = [...rawFields].sort((a, b) => {
+      const aOrder = a.hintOrder ?? Infinity;
+      const bOrder = b.hintOrder ?? Infinity;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return rawFields.indexOf(a) - rawFields.indexOf(b);
+    });
+    if (!hintFieldSearch || !searchText.trim()) return sorted;
+    const needle = searchText.trim().toLowerCase();
+    return sorted.filter((f) => (f.label ?? f.name).toLowerCase().includes(needle));
+  }, [rawFields, hintFieldSearch, searchText]);
   const fieldColumns = useHintPanelSelector((s) => s.fieldColumns);
 
   const viewportStyle =
@@ -88,17 +102,35 @@ export function HintFields(): JSX.Element {
       : undefined;
 
   return (
-    <ScrollArea.Root className={`${styles.fields} ${styles.scrollRoot}`}>
-      <ScrollArea.Viewport className={styles.scrollViewport}>
-        <div style={viewportStyle}>
-          {fields.map((field) => (
-            <FieldRow key={field.name} field={field} />
-          ))}
+    <div className={styles.fields} style={{ display: "flex", flexDirection: "column" }}>
+      {hintFieldSearch && (
+        <div className={styles.fieldSearch}>
+          <input
+            data-ef="hint-field-search"
+            type="text"
+            className={styles.fieldSearchInput}
+            placeholder="Search fields…"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
         </div>
-      </ScrollArea.Viewport>
-      <ScrollArea.Scrollbar orientation="vertical" className={styles.scrollbar}>
-        <ScrollArea.Thumb className={styles.scrollThumb} />
-      </ScrollArea.Scrollbar>
-    </ScrollArea.Root>
+      )}
+      <ScrollArea.Root
+        className={styles.scrollRoot}
+        style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
+      >
+        <ScrollArea.Viewport className={styles.scrollViewport}>
+          <div style={viewportStyle}>
+            {fields.map((field) => (
+              <FieldRow key={field.name} field={field} />
+            ))}
+          </div>
+        </ScrollArea.Viewport>
+        <ScrollArea.Scrollbar orientation="vertical" className={styles.scrollbar}>
+          <ScrollArea.Thumb className={styles.scrollThumb} />
+        </ScrollArea.Scrollbar>
+      </ScrollArea.Root>
+    </div>
   );
 }

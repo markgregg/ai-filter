@@ -55,6 +55,8 @@ const STORY_EXPLANATIONS: Record<string, string> = {
     "What it does: wires AiFilter pills into AG Grid external filtering and updates rows live. How it works: AiFilter receives the real Grid API, updates isExternalFilterPresent/doesExternalFilterPass, and AG Grid re-evaluates rows via onFilterChanged.",
   "ag-grid-large":
     "What it does: stress-tests AG Grid integration with thousands of rows and dozens of generated columns. How it works: column definitions and row data are generated once with stable memoization, AiFilter derives fields from the live Grid API, and external filtering is applied against the full dataset.",
+  "hint-field-search":
+    "What it does: shows a search input above the hint panel field list. How it works: hintFieldSearch=true adds a text box that filters the visible fields by name or label as the user types, making it easy to find the right field in a long list.",
 };
 
 function StoryExplanation({ text }: { text: string }): JSX.Element {
@@ -1600,7 +1602,7 @@ export const AgGridLargeDataset: Story = () => {
   const [gridApi, setGridApi] = useState<AgGridApi | undefined>();
 
   const columnDefs = useMemo<ColDef<LargeGridRow>[]>(() => makeLargeGridColumnDefs(), []);
-  const rowData = useMemo<LargeGridRow[]>(() => makeLargeGridRows(2500), []);
+  const rowData = useMemo<LargeGridRow[]>(() => makeLargeGridRows(10000), []);
 
   const fields = useMemo<FieldDefinition[]>(
     () => [
@@ -1739,6 +1741,132 @@ LineHeight15.parameters = {
   docs: {
     description: {
       story: "Renders AiFilter inside a container with line-height: 1.5.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: hintOrder — controls field position in the hint panel
+// ---------------------------------------------------------------------------
+
+export const HintOrder: Story = () => (
+  <FilterDemo
+    id="hint-order"
+    fields={[
+      {
+        name: "title",
+        label: "Title",
+        type: "string",
+        precedence: 10,
+        // No hintOrder — will appear after all ordered fields
+      },
+      {
+        name: "status",
+        label: "Status",
+        type: "set",
+        precedence: 20,
+        setValues: ["New", "In Progress", "Done"],
+        hintOrder: 3,
+      },
+      {
+        name: "priority",
+        label: "Priority",
+        type: "integer",
+        precedence: 30,
+        hints: [
+          { kind: "single", text: "Critical (1)", operator: "=", value: 1 },
+          { kind: "single", text: "High (2)", operator: "=", value: 2 },
+          { kind: "single", text: "Low (3)", operator: "=", value: 3 },
+        ],
+        hintOrder: 1,
+      },
+      {
+        name: "assignee",
+        label: "Assignee",
+        type: "string",
+        precedence: 40,
+        hintOrder: 2,
+      },
+      {
+        name: "due",
+        label: "Due Date",
+        type: "date",
+        precedence: 50,
+        // No hintOrder — will appear after all ordered fields
+      },
+    ]}
+    placeholder="Open the hint panel to see field order: Priority → Assignee → Status → Title → Due Date"
+  />
+);
+HintOrder.storyName = "Hint field order";
+HintOrder.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates the hintOrder field property. Fields with a lower hintOrder appear earlier in the hint panel field list. Fields without hintOrder are sorted after all ordered fields and preserve their original definition order. Here: Priority (1) → Assignee (2) → Status (3) → Title → Due Date.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: hintFieldSearch — search box above the hint panel field list
+// ---------------------------------------------------------------------------
+
+export const HintFieldSearch: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+  return (
+    <div style={{ maxWidth: 720, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS["hint-field-search"]} />
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Click inside the filter, then type in the <em>Search fields…</em> box to narrow the list.
+        Try searching for <em>"due"</em>, <em>"pri"</em>, or <em>"sta"</em>.
+      </p>
+      <AiFilter
+        id="hint-field-search"
+        fields={[
+          { name: "title",    label: "Title",       type: "string",  precedence: 10 },
+          { name: "priority", label: "Priority",    type: "integer", precedence: 20,
+            hints: [
+              { kind: "single", text: "Critical (1)", operator: "=", value: 1 },
+              { kind: "single", text: "High (2)",     operator: "=", value: 2 },
+            ],
+          },
+          { name: "status",   label: "Status",      type: "set",     precedence: 30,
+            setValues: ["New", "In Progress", "Done"],
+          },
+          { name: "assignee", label: "Assignee",    type: "string",  precedence: 40 },
+          { name: "due",      label: "Due Date",    type: "date",    precedence: 50 },
+          { name: "active",   label: "Active",      type: "boolean", precedence: 60 },
+          { name: "score",    label: "Score",       type: "float",   precedence: 70 },
+        ]}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => setPills([])}
+        hintFieldSearch={true}
+        placeholder="Click inside to open hint panel…"
+      />
+      <pre
+        style={{
+          marginTop: "1rem",
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+HintFieldSearch.storyName = "Hint field search";
+HintFieldSearch.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates the hintFieldSearch property. When enabled, a search input appears at the top of the hint panel field column. Typing into it filters the visible fields in real time, making large field lists easy to navigate.",
     },
   },
 };

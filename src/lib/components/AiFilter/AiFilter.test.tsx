@@ -1331,6 +1331,74 @@ describe("AiFilter — hintsEnabled", () => {
     });
   });
 
+  it("hintOrder controls the order of fields in the hint panel field list", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      { name: "alpha",   label: "Alpha",   type: "string",  precedence: 1 },
+      { name: "beta",    label: "Beta",    type: "string",  precedence: 2, hintOrder: 2 },
+      { name: "gamma",   label: "Gamma",   type: "string",  precedence: 3, hintOrder: 1 },
+      { name: "delta",   label: "Delta",   type: "string",  precedence: 4 },
+    ];
+
+    const { container, getInput } = renderFilter({ fields });
+    await user.click(getInput());
+
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]');
+      expect(panel).toBeTruthy();
+    });
+
+    // Collect field button labels in DOM order from the hint panel
+    const panel = container.querySelector('[role="listbox"]') as HTMLElement;
+    const fieldBtns = Array.from(
+      panel.querySelectorAll<HTMLButtonElement>('button[aria-label^="Insert"]')
+    ).map((btn) => btn.getAttribute("aria-label")?.replace("Insert ", "") ?? "");
+
+    // Gamma (hintOrder=1) then Beta (hintOrder=2) should appear before Alpha and Delta (no hintOrder)
+    const gammaIdx = fieldBtns.indexOf("Gamma");
+    const betaIdx  = fieldBtns.indexOf("Beta");
+    const alphaIdx = fieldBtns.indexOf("Alpha");
+    const deltaIdx = fieldBtns.indexOf("Delta");
+
+    expect(gammaIdx).toBeLessThan(alphaIdx);
+    expect(gammaIdx).toBeLessThan(deltaIdx);
+    expect(betaIdx).toBeLessThan(alphaIdx);
+    expect(betaIdx).toBeLessThan(deltaIdx);
+    expect(gammaIdx).toBeLessThan(betaIdx);
+  });
+
+  it("fields without hintOrder preserve their original relative order", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      { name: "charlie", label: "Charlie", type: "string", precedence: 1 },
+      { name: "alice",   label: "Alice",   type: "string", precedence: 2 },
+      { name: "bob",     label: "Bob",     type: "string", precedence: 3, hintOrder: 1 },
+    ];
+
+    const { container, getInput } = renderFilter({ fields });
+    await user.click(getInput());
+
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]');
+      expect(panel).toBeTruthy();
+    });
+
+    const panel = container.querySelector('[role="listbox"]') as HTMLElement;
+    const fieldBtns = Array.from(
+      panel.querySelectorAll<HTMLButtonElement>('button[aria-label^="Insert"]')
+    ).map((btn) => btn.getAttribute("aria-label")?.replace("Insert ", "") ?? "");
+
+    const bobIdx     = fieldBtns.indexOf("Bob");
+    const charlieIdx = fieldBtns.indexOf("Charlie");
+    const aliceIdx   = fieldBtns.indexOf("Alice");
+
+    // Bob (hintOrder=1) first
+    expect(bobIdx).toBeLessThan(charlieIdx);
+    expect(bobIdx).toBeLessThan(aliceIdx);
+    // Charlie and Alice preserve definition order (Charlie before Alice)
+    expect(charlieIdx).toBeLessThan(aliceIdx);
+  });
+
   it("uses virtualized hint rendering when hintVirtualized is enabled", async () => {
     const user = userEvent.setup();
     const fields: FieldDefinition[] = [
@@ -1359,6 +1427,163 @@ describe("AiFilter — hintsEnabled", () => {
     const rows = container.querySelectorAll('[data-ef="hint-items-grid"] button');
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThan(200);
+  });
+});
+
+// ── hintFieldSearch ──────────────────────────────────────────────────────────
+
+describe("AiFilter — hintFieldSearch", () => {
+  const searchFields: FieldDefinition[] = [
+    { name: "title",    label: "Title",    type: "string",  precedence: 10 },
+    { name: "priority", label: "Priority", type: "integer", precedence: 20 },
+    { name: "status",   label: "Status",   type: "set",     precedence: 30, setValues: ["New", "Done"] },
+    { name: "assignee", label: "Assignee", type: "string",  precedence: 40 },
+    { name: "due",      label: "Due Date", type: "date",    precedence: 50 },
+  ];
+
+  it("does not render a search input when hintFieldSearch is not set", async () => {
+    const user = userEvent.setup();
+    const { container, getInput } = renderFilter({ fields: searchFields });
+
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.querySelector('[role="listbox"]')).toBeTruthy();
+    });
+
+    const searchBox = container.querySelector('[data-ef="hint-field-search"]');
+    expect(searchBox).toBeNull();
+  });
+
+  it("renders a search input when hintFieldSearch=true", async () => {
+    const user = userEvent.setup();
+    const { container, getInput } = renderFilter({
+      fields: searchFields,
+      hintFieldSearch: true,
+    });
+
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-ef="hint-field-search"]')).toBeTruthy();
+    });
+  });
+
+  it("typing in the search box filters the field list", async () => {
+    const user = userEvent.setup();
+    const { container, getInput } = renderFilter({
+      fields: searchFields,
+      hintFieldSearch: true,
+    });
+
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-ef="hint-field-search"]')).toBeTruthy();
+    });
+
+    const searchBox = container.querySelector<HTMLInputElement>('[data-ef="hint-field-search"]')!;
+    await user.type(searchBox, "pri");
+
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]') as HTMLElement;
+      const fieldBtns = Array.from(
+        panel.querySelectorAll<HTMLButtonElement>('button[aria-label^="Insert"]'),
+      ).map((btn) => btn.getAttribute("aria-label")?.replace("Insert ", "") ?? "");
+
+      // "Priority" matches "pri", others should be gone
+      expect(fieldBtns).toContain("Priority");
+      expect(fieldBtns).not.toContain("Title");
+      expect(fieldBtns).not.toContain("Status");
+      expect(fieldBtns).not.toContain("Assignee");
+      expect(fieldBtns).not.toContain("Due Date");
+    });
+  });
+
+  it("search is case-insensitive", async () => {
+    const user = userEvent.setup();
+    const { container, getInput } = renderFilter({
+      fields: searchFields,
+      hintFieldSearch: true,
+    });
+
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-ef="hint-field-search"]')).toBeTruthy();
+    });
+
+    const searchBox = container.querySelector<HTMLInputElement>('[data-ef="hint-field-search"]')!;
+    await user.type(searchBox, "ASSIGN");
+
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]') as HTMLElement;
+      const fieldBtns = Array.from(
+        panel.querySelectorAll<HTMLButtonElement>('button[aria-label^="Insert"]'),
+      ).map((btn) => btn.getAttribute("aria-label")?.replace("Insert ", "") ?? "");
+
+      expect(fieldBtns).toContain("Assignee");
+      expect(fieldBtns).not.toContain("Title");
+    });
+  });
+
+  it("clearing the search text shows all fields again", async () => {
+    const user = userEvent.setup();
+    const { container, getInput } = renderFilter({
+      fields: searchFields,
+      hintFieldSearch: true,
+    });
+
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-ef="hint-field-search"]')).toBeTruthy();
+    });
+
+    const searchBox = container.querySelector<HTMLInputElement>('[data-ef="hint-field-search"]')!;
+
+    // Filter down to one field
+    await user.type(searchBox, "due");
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]') as HTMLElement;
+      const fieldBtns = Array.from(
+        panel.querySelectorAll<HTMLButtonElement>('button[aria-label^="Insert"]'),
+      );
+      expect(fieldBtns.length).toBe(1);
+    });
+
+    // Clear — all fields should come back
+    await user.clear(searchBox);
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]') as HTMLElement;
+      const fieldBtns = Array.from(
+        panel.querySelectorAll<HTMLButtonElement>('button[aria-label^="Insert"]'),
+      );
+      expect(fieldBtns.length).toBe(searchFields.length);
+    });
+  });
+
+  it("shows no field buttons when search matches nothing", async () => {
+    const user = userEvent.setup();
+    const { container, getInput } = renderFilter({
+      fields: searchFields,
+      hintFieldSearch: true,
+    });
+
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-ef="hint-field-search"]')).toBeTruthy();
+    });
+
+    const searchBox = container.querySelector<HTMLInputElement>('[data-ef="hint-field-search"]')!;
+    await user.type(searchBox, "zzznomatch");
+
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]') as HTMLElement;
+      const fieldBtns = panel.querySelectorAll<HTMLButtonElement>('button[aria-label^="Insert"]');
+      expect(fieldBtns.length).toBe(0);
+    });
   });
 });
 
