@@ -1119,6 +1119,11 @@ function resolveRangeBoundaryValue(
  * - Comma-separated clauses (treated as implicit AND)
  * - "between X and Y" — the inner "and" is NOT treated as a connector
  * - Bracket tokens: "(" / ")"
+ * - Context carry-over: bare values after OR or comma inherit the preceding
+ *   field + operator when the field does not support "in" (list) operator.
+ *   e.g. "title is foo or bar"    → title=foo OR title=bar
+ *        "title is foo, bar, baz" → title=foo OR title=bar OR title=baz
+ *        "count > 5 or 10"        → count>5  OR count>10
  *
  * Examples:
  *   "cost between 1 and 10 and state = Done"
@@ -1154,12 +1159,30 @@ export function resolveNlpQuery(
     }
   }
 
+  // Sort fields for bare-value context detection (same ordering as resolveNlpExpression).
+  const sortedFields = [...fields].sort((a, b) => a.precedence - b.precedence);
+
   const pills: FilterPill[] = [];
+  // Context carry-over state: tracks the last explicitly-matched field + operator
+  // so a bare value following OR or a comma can inherit that context.
+  // Only applies to fields that do NOT support the "in" operator — list-capable
+  // fields already handle multi-value through "field in X, Y" syntax and
+  // set-value inference.
+  let contextField: FieldDefinition | undefined;
+  let contextOp: AnyOperator | undefined;
+
   for (const part of parts) {
     const upper = part.toUpperCase();
     if (upper === "AND" || upper === "OR" || upper === "(" || upper === ")") {
       const pill = resolveNlpExpression(part, fields, options);
       if (pill) pills.push(pill);
+      // Reset context on AND and brackets — carry-over must not cross hard
+      // clause boundaries.  OR is intentionally left alone so that the value
+      // immediately following "or" can still inherit the prior field context.
+      if (upper !== "OR") {
+        contextField = undefined;
+        contextOp = undefined;
+      }
       continue;
     }
     // Comma-separated sub-clauses are implicitly ANDed — EXCEPT when the
@@ -1170,8 +1193,53 @@ export function resolveNlpQuery(
       ? [part]
       : part.split(/\s*,\s*/).map((c) => c.trim()).filter(Boolean);
     for (let j = 0; j < subClauses.length; j++) {
-      if (j > 0) pills.push({ id: makeId(), kind: "and" });
-      const pill = resolveNlpExpression(subClauses[j], fields, options);
+      const clause = subClauses[j];
+
+      // Attempt context carry-over for bare values when the context field does
+      // not support "in" (e.g. string, integer, float, date fields).
+      let usedContext = false;
+      let pill: FilterPill | undefined;
+
+      if (contextField && contextOp !== undefined && !operatorsForField(contextField).includes("in")) {
+        const tok = tokenise(clause);
+        const isBare = !tok || !tok.fieldToken || !matchField(tok.fieldToken, sortedFields);
+        if (isBare) {
+          const ctxPill = resolveNlpExpression(
+            `${contextField.name} ${contextOp} ${clause.trim()}`,
+            fields,
+            options,
+          );
+          // Only accept a valid value pill — invalid results (e.g. "count > text")
+          // fall through to the normal resolver so type-safe inference still wins.
+          if (ctxPill?.kind === "value" && !ctxPill.invalid) {
+            pill = ctxPill;
+            usedContext = true;
+          }
+        }
+      }
+
+      if (!pill) {
+        pill = resolveNlpExpression(clause, fields, options);
+      }
+
+      // Separator between sub-clauses: when context carry-over is active the
+      // values all refer to the same field ("title is foo, bar") so use OR;
+      // otherwise use AND to join independent clauses (existing behaviour).
+      if (j > 0) {
+        pills.push({ id: makeId(), kind: usedContext ? "or" : "and" });
+      }
+
+      // Update context when this clause resolved with an explicit field token.
+      // Carry-over results do not update context (field is already in context).
+      if (pill !== undefined && pill.kind === "value" && !usedContext) {
+        const tok = tokenise(clause);
+        if (tok?.fieldToken && matchField(tok.fieldToken, sortedFields)) {
+          const vPill = pill;
+          contextField = sortedFields.find((f) => f.name === vPill.fieldName);
+          contextOp = vPill.operator;
+        }
+      }
+
       if (pill) pills.push(pill);
     }
   }

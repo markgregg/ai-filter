@@ -1074,6 +1074,90 @@ describe("resolveNlpQuery â€” complex combinations", () => {
 });
 
 
+describe("resolveNlpQuery — context carry-over (non-list fields)", () => {
+  // "field is x or y" → field=x OR field=y  (string, no "in" support)
+  it("title is foo or bar  →  title=foo OR title=bar", () => {
+    const pills = resolveNlpQuery("title is foo or bar", FIELDS);
+    expect(pills).toHaveLength(3);
+    expect(pills[0]).toMatchObject({ kind: "value", fieldName: "title", operator: "=", value: "foo" });
+    expect(pills[1]).toMatchObject({ kind: "or" });
+    expect(pills[2]).toMatchObject({ kind: "value", fieldName: "title", operator: "=", value: "bar" });
+  });
+
+  // "field is x, y" — comma-separated same-field values become OR
+  it("title is foo, bar  →  title=foo OR title=bar", () => {
+    const pills = resolveNlpQuery("title is foo, bar", FIELDS);
+    expect(pills).toHaveLength(3);
+    expect(pills[0]).toMatchObject({ kind: "value", fieldName: "title", operator: "=", value: "foo" });
+    expect(pills[1]).toMatchObject({ kind: "or" });
+    expect(pills[2]).toMatchObject({ kind: "value", fieldName: "title", operator: "=", value: "bar" });
+  });
+
+  // "field is x, y or z" — both comma and or become OR for same field
+  it("title is foo, bar or baz  →  title=foo OR title=bar OR title=baz", () => {
+    const pills = resolveNlpQuery("title is foo, bar or baz", FIELDS);
+    expect(pills).toHaveLength(5);
+    expect(pills[0]).toMatchObject({ kind: "value", fieldName: "title", value: "foo" });
+    expect(pills[1]).toMatchObject({ kind: "or" });
+    expect(pills[2]).toMatchObject({ kind: "value", fieldName: "title", value: "bar" });
+    expect(pills[3]).toMatchObject({ kind: "or" });
+    expect(pills[4]).toMatchObject({ kind: "value", fieldName: "title", value: "baz" });
+  });
+
+  // "field x, y or z" — no explicit operator; default op is used throughout
+  it("title foo, bar or baz  →  title[op]foo OR title[op]bar OR title[op]baz", () => {
+    const pills = resolveNlpQuery("title foo, bar or baz", FIELDS);
+    expect(pills).toHaveLength(5);
+    expect(pills[0]).toMatchObject({ kind: "value", fieldName: "title", value: "foo" });
+    expect(pills[1]).toMatchObject({ kind: "or" });
+    expect(pills[2]).toMatchObject({ kind: "value", fieldName: "title", value: "bar" });
+    expect(pills[3]).toMatchObject({ kind: "or" });
+    expect(pills[4]).toMatchObject({ kind: "value", fieldName: "title", value: "baz" });
+  });
+
+  // Integer field — "count > 5 or 10" → count>5 OR count>10
+  it("count > 5 or 10  →  count>5 OR count>10", () => {
+    const pills = resolveNlpQuery("count > 5 or 10", FIELDS);
+    expect(pills).toHaveLength(3);
+    expect(pills[0]).toMatchObject({ kind: "value", fieldName: "count", operator: ">", value: 5 });
+    expect(pills[1]).toMatchObject({ kind: "or" });
+    expect(pills[2]).toMatchObject({ kind: "value", fieldName: "count", operator: ">", value: 10 });
+  });
+
+  // Integer field with comma list — "count is 5, 10, 20" → count=5 OR count=10 OR count=20
+  it("count is 5, 10, 20  →  count=5 OR count=10 OR count=20", () => {
+    const pills = resolveNlpQuery("count is 5, 10, 20", FIELDS);
+    expect(pills).toHaveLength(5);
+    expect(pills[0]).toMatchObject({ kind: "value", fieldName: "count", operator: "=", value: 5 });
+    expect(pills[1]).toMatchObject({ kind: "or" });
+    expect(pills[2]).toMatchObject({ kind: "value", fieldName: "count", operator: "=", value: 10 });
+    expect(pills[3]).toMatchObject({ kind: "or" });
+    expect(pills[4]).toMatchObject({ kind: "value", fieldName: "count", operator: "=", value: 20 });
+  });
+
+  // AND resets context — bare value after AND falls back to normal inference
+  it("title is foo or bar and count > 5  →  context resets at AND", () => {
+    const pills = resolveNlpQuery("title is foo or bar and count > 5", FIELDS);
+    // title=foo OR title=bar AND count>5
+    expect(pills).toHaveLength(5);
+    expect(pills[0]).toMatchObject({ kind: "value", fieldName: "title", value: "foo" });
+    expect(pills[1]).toMatchObject({ kind: "or" });
+    expect(pills[2]).toMatchObject({ kind: "value", fieldName: "title", value: "bar" });
+    expect(pills[3]).toMatchObject({ kind: "and" });
+    expect(pills[4]).toMatchObject({ kind: "value", fieldName: "count" });
+  });
+
+  // Set fields have "in" operator — no carry-over; value-inference handles them
+  it("set field 'status is New or Done' — each value resolved independently (no carry-over)", () => {
+    const pills = resolveNlpQuery("status is New or Done", FIELDS);
+    expect(pills).toHaveLength(3);
+    expect(pills[0]).toMatchObject({ kind: "value", fieldName: "status", value: "New" });
+    expect(pills[1]).toMatchObject({ kind: "or" });
+    // "Done" resolved via set-value inference (not carry-over)
+    expect(pills[2]).toMatchObject({ kind: "value", fieldName: "status", value: "Done" });
+  });
+});
+
 // ─── DATE WORD RESOLUTION (resolveDatePhrase) ──────────────────────────────
 
 /** ISO date regex: yyyy-MM-dd */
