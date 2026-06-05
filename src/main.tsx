@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { AiFilter, resolveNlpExpression, resolveNlpQuery, type AiConfig, type FieldDefinition, type FilterPill, type ValueResolver } from "./lib";
 import type { AiFilterProps } from "./lib";
-import "./styles/global.css";
+import "./styles/global.less";
 
 // ---------------------------------------------------------------------------
 // Custom value resolvers — extend NLP parsing for specific fields
@@ -208,3 +208,4 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
+

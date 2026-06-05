@@ -2,11 +2,12 @@ import type { ChangeEvent } from "react";
 import { EfInput } from "../ui/EfInput";
 import { useConfigSelector, useUiSelector } from "../../context";
 import { usePillsAreaSelector } from "./PillsAreaContext";
-import styles from "./PillsArea.module.css";
+import styles from "./PillsArea.module.less";
 
 export function FilterInput(): JSX.Element {
   const inputRef = usePillsAreaSelector((s) => s.inputRef);
   const onInputKeyDown = usePillsAreaSelector((s) => s.onInputKeyDown);
+  const onInputPaste = usePillsAreaSelector((s) => s.onInputPaste);
 
   const inputValue = useUiSelector((s) => s.inputValue);
   const setInputValue = useUiSelector((s) => s.setInputValue);
@@ -25,8 +26,10 @@ export function FilterInput(): JSX.Element {
       value={inputValue}
       onChange={handleChange}
       onKeyDown={onInputKeyDown}
+      onPaste={onInputPaste}
       placeholder={placeholder ?? "Type a filter..."}
       autoFocus={isExpanded}
     />
   );
 }
+

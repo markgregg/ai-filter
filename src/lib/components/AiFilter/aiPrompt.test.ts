@@ -60,6 +60,20 @@ describe("buildFilterPrompt", () => {
     expect(prompt).toContain("=");
     expect(prompt).toContain("contains");
   });
+
+  it("falls back to raw operator text when no label mapping exists", () => {
+    const customFields: FieldDefinition[] = [
+      { name: "raw", type: "custom", precedence: 1, operators: ["=" as const, "??" as unknown as "="] },
+    ];
+    const prompt = buildFilterPrompt("test", customFields, {});
+    expect(prompt).toContain("??");
+  });
+
+  it("omits allowed values note when dynamic set values are not provided", () => {
+    const dynamicFields: FieldDefinition[] = [{ name: "category", type: "set", precedence: 1 }];
+    const prompt = buildFilterPrompt("test", dynamicFields, {});
+    expect(prompt).not.toContain("allowed values");
+  });
 });
 
 // ── parseFilterResponse ──────────────────────────────────────────────────────
@@ -169,6 +183,12 @@ describe("parseFilterResponse", () => {
     expect(pills.length).toBe(1);
     expect((pills[0] as ValuePill).fieldName).toBe("status");
     expect((pills[0] as ValuePill).value).toBe("New");
+  });
+
+  it("skips lines that resolve to undefined pills", () => {
+    const text = "unknown words";
+    const pills = parseFilterResponse(text, FIELDS, { fallbackToHighestPrecedence: false });
+    expect(pills).toEqual([]);
   });
 });
 

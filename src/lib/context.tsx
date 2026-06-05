@@ -14,6 +14,7 @@ type ConfigState = {
   id?: string;
   fields: FieldDefinition[];
   hintsEnabled: boolean;
+  maxFavorites?: number;
   hintFieldSearch: boolean;
   placeholder?: string;
   aiPlaceholder?: string;
@@ -28,6 +29,9 @@ type DataState = {
   setValuesByField: Record<string, string[]>;
   hintsByField: Record<string, Hint[]>;
   recentByField: Record<string, unknown[]>;
+  favoritesByField: Record<string, unknown[]>;
+  favoriteCountsByField: Record<string, Record<string, number>>;
+  favoriteFieldCounts: Record<string, number>;
   loadSetValues: (field: FieldDefinition, lookupText?: string) => Promise<string[]>;
   loadHints: (field: FieldDefinition) => Promise<Hint[]>;
   rememberValue: (fieldName: string, value: unknown) => void;
@@ -36,6 +40,7 @@ type DataState = {
 type UiState = {
   focused: boolean;
   inputValue: string;
+  hintValueFilterText: string;
   insertIndex: number;
   selectedIds: string[];
   editingId?: string;
@@ -43,6 +48,7 @@ type UiState = {
   highlightIndex: number;
   setFocused: (next: boolean) => void;
   setInputValue: (next: string) => void;
+  setHintValueFilterText: (next: string) => void;
   setInsertIndex: (next: number) => void;
   setSelectedIds: (next: string[]) => void;
   setEditingId: (next?: string) => void;
@@ -83,6 +89,35 @@ function writeRecent(id: string | undefined, value: Record<string, unknown[]>): 
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function keyForFavorites(id?: string): string | undefined {
+  if (!id) return undefined;
+  return `ai-filter:${id}:favorites`;
+}
+
+function readFavorites(id?: string): Record<string, Record<string, number>> {
+  const key = keyForFavorites(id);
+  if (!key) return {};
+
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, Record<string, number>>;
+    }
+  } catch {
+    return {};
+  }
+
+  return {};
+}
+
+function writeFavorites(id: string | undefined, value: Record<string, Record<string, number>>): void {
+  const key = keyForFavorites(id);
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
 export function AiFilterProvider({
   children,
   id,
@@ -91,6 +126,7 @@ export function AiFilterProvider({
   onChange,
   onClear,
   hintsEnabled = true,
+  maxFavorites,
   hintFieldSearch = false,
   placeholder,
   aiPlaceholder,
@@ -102,9 +138,13 @@ export function AiFilterProvider({
   const [recentByField, setRecentByField] = useState<Record<string, unknown[]>>(() =>
     readRecent(id),
   );
+  const [favoriteCountsByField, setFavoriteCountsByField] = useState<Record<string, Record<string, number>>>(() =>
+    maxFavorites !== undefined ? readFavorites(id) : {},
+  );
 
   const [focused, setFocused] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [hintValueFilterText, setHintValueFilterText] = useState("");
   const [insertIndex, setInsertIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | undefined>();
@@ -143,6 +183,19 @@ export function AiFilterProvider({
   useEffect(() => {
     writeRecent(id, recentByField);
   }, [id, recentByField]);
+
+  useEffect(() => {
+    if (maxFavorites === undefined) {
+      setFavoriteCountsByField({});
+      return;
+    }
+    setFavoriteCountsByField(readFavorites(id));
+  }, [id, maxFavorites]);
+
+  useEffect(() => {
+    if (maxFavorites === undefined) return;
+    writeFavorites(id, favoriteCountsByField);
+  }, [id, maxFavorites, favoriteCountsByField]);
 
   useEffect(() => {
     // Keep static set-values available immediately without calling async sources.
@@ -190,8 +243,11 @@ export function AiFilterProvider({
       if (field.type !== "set") return [];
       const source = field.setValues;
       const debounceMs = field.setValuesDebounceMs ?? 0;
+      const lookupMinChars = field.lookupMinChars ?? 0;
+      const normalizedLookupText = lookupText.trim();
 
       if (!source) return [];
+      if (normalizedLookupText.length < lookupMinChars) return [];
 
       // Static set arrays are immediate and not query-driven.
       if (Array.isArray(source)) {
@@ -199,7 +255,7 @@ export function AiFilterProvider({
         return source;
       }
 
-      const requestKey = `${field.name}::${lookupText}`;
+      const requestKey = `${field.name}::${normalizedLookupText}`;
       const existingRequest = setValuesRequestRef.current[requestKey];
       if (existingRequest) {
         return existingRequest;
@@ -225,7 +281,7 @@ export function AiFilterProvider({
           setValuesAbortRef.current[field.name] = controller;
 
           const runSource = source as (lookup: string, signal?: AbortSignal) => Promise<string[]>;
-          runSource(lookupText, controller.signal)
+          runSource(normalizedLookupText, controller.signal)
             .then((values) => {
               const isLatest = setValuesSeqRef.current[field.name] === nextSeq;
               if (isLatest) {
@@ -335,24 +391,65 @@ export function AiFilterProvider({
 
   const rememberValue = useCallback(
     (fieldName: string, value: unknown) => {
-      if (!hintsEnabled) return;
-      setRecentByField((prev) => {
-        const list = prev[fieldName] ?? [];
-        const without = list.filter((item) => JSON.stringify(item) !== JSON.stringify(value));
-        return {
-          ...prev,
-          [fieldName]: [value, ...without].slice(0, 10),
-        };
-      });
+      const valueKey = JSON.stringify(value);
+      if (hintsEnabled) {
+        setRecentByField((prev) => {
+          const list = prev[fieldName] ?? [];
+          const without = list.filter((item) => JSON.stringify(item) !== valueKey);
+          return {
+            ...prev,
+            [fieldName]: [value, ...without].slice(0, 10),
+          };
+        });
+      }
+      if (maxFavorites !== undefined) {
+        setFavoriteCountsByField((prev) => {
+          const fieldMap = { ...(prev[fieldName] ?? {}) };
+          fieldMap[valueKey] = (fieldMap[valueKey] ?? 0) + 1;
+          return {
+            ...prev,
+            [fieldName]: fieldMap,
+          };
+        });
+      }
     },
-    [hintsEnabled],
+    [hintsEnabled, maxFavorites],
   );
+
+  const favoritesByField = useMemo<Record<string, unknown[]>>(() => {
+    if (maxFavorites === undefined) return {};
+    const out: Record<string, unknown[]> = {};
+    for (const [fieldName, counts] of Object.entries(favoriteCountsByField)) {
+      const values = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, Math.max(0, maxFavorites))
+        .map(([encoded]) => {
+          try {
+            return JSON.parse(encoded) as unknown;
+          } catch {
+            return encoded;
+          }
+        });
+      out[fieldName] = values;
+    }
+    return out;
+  }, [favoriteCountsByField, maxFavorites]);
+
+  const favoriteFieldCounts = useMemo<Record<string, number>>(() => {
+    if (maxFavorites === undefined) return {};
+    const out: Record<string, number> = {};
+    for (const [fieldName, counts] of Object.entries(favoriteCountsByField)) {
+      out[fieldName] = Object.values(counts).reduce((sum, c) => sum + c, 0);
+    }
+    return out;
+  }, [favoriteCountsByField, maxFavorites]);
 
   const configValue = useMemo<ConfigState>(
     () => ({
       id,
       fields,
       hintsEnabled,
+      maxFavorites,
       hintFieldSearch,
       placeholder,
       aiPlaceholder,
@@ -360,7 +457,7 @@ export function AiFilterProvider({
       onChange,
       onClear,
     }),
-    [id, fields, hintsEnabled, hintFieldSearch, placeholder, aiPlaceholder, pillMaxWidth, onChange, onClear],
+    [id, fields, hintsEnabled, maxFavorites, hintFieldSearch, placeholder, aiPlaceholder, pillMaxWidth, onChange, onClear],
   );
 
   const dataValue = useMemo<DataState>(
@@ -370,6 +467,9 @@ export function AiFilterProvider({
       setValuesByField,
       hintsByField,
       recentByField,
+      favoritesByField,
+      favoriteCountsByField,
+      favoriteFieldCounts,
       loadSetValues,
       loadHints,
       rememberValue,
@@ -380,6 +480,9 @@ export function AiFilterProvider({
       setValuesByField,
       hintsByField,
       recentByField,
+      favoritesByField,
+      favoriteCountsByField,
+      favoriteFieldCounts,
       loadSetValues,
       loadHints,
       rememberValue,
@@ -390,6 +493,7 @@ export function AiFilterProvider({
     () => ({
       focused,
       inputValue,
+      hintValueFilterText,
       insertIndex,
       selectedIds,
       editingId,
@@ -397,6 +501,7 @@ export function AiFilterProvider({
       highlightIndex,
       setFocused,
       setInputValue,
+      setHintValueFilterText,
       setInsertIndex,
       setSelectedIds,
       setEditingId,
@@ -406,6 +511,7 @@ export function AiFilterProvider({
     [
       focused,
       inputValue,
+      hintValueFilterText,
       insertIndex,
       selectedIds,
       editingId,

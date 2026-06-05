@@ -1,8 +1,10 @@
-import { useEffect, useRef, type MouseEvent } from "react";
-import { GhostButton } from "../ui/GhostButton";
 import { useUiSelector } from "../../context";
 import type { FieldMatch } from "../../types";
-import styles from "./MatchDropdown.module.css";
+import { GhostButton } from "../ui/GhostButton";
+import { cx, preventDefaultMouseDown } from "../ui/utils";
+import { useScrollIntoViewWhenActive } from "../ui/useScrollIntoViewWhenActive";
+import { formatFieldValueForDisplay } from "../../parser";
+import styles from "./MatchDropdown.module.less";
 
 export function MatchDropdownRow(props: {
   match: FieldMatch;
@@ -12,23 +14,33 @@ export function MatchDropdownRow(props: {
   const { match, index, onPick } = props;
 
   const isActive = useUiSelector((s) => s.highlightIndex === index);
-  const ref = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (isActive) {
-      ref.current?.scrollIntoView({ block: "nearest" });
-    }
-  }, [isActive]);
+  const ref = useScrollIntoViewWhenActive<HTMLButtonElement>(isActive);
 
   function handleClick(): void {
     onPick(match);
   }
 
-  function handleMouseDown(e: MouseEvent): void {
-    e.preventDefault();
-  }
-
-  const defaultText = match.type === "value-candidate" ? `= ${match.text}` : match.text;
+  const defaultText = (() => {
+    if (match.type === "value-candidate") {
+      return `= ${formatFieldValueForDisplay(match.field, match.text)}`;
+    }
+    if (match.type === "hint" && match.hint) {
+      if (match.hint.kind === "single") {
+        if (match.field.type === "date" || match.field.type === "datetime") {
+          return formatFieldValueForDisplay(match.field, match.hint.value);
+        }
+        return match.hint.text;
+      }
+      if (match.hint.kind === "list") {
+        return `${String(match.hint.operator)} (${match.hint.values.map((v) => formatFieldValueForDisplay(match.field, v)).join(", ")})`;
+      }
+      return `${formatFieldValueForDisplay(match.field, match.hint.from)} to ${formatFieldValueForDisplay(match.field, match.hint.to)}`;
+    }
+    if (match.type === "set-value") {
+      return formatFieldValueForDisplay(match.field, match.setValue ?? match.text);
+    }
+    return match.text;
+  })();
   const suggestionValue =
     match.type === "set-value"
       ? (match.setValue ?? match.text)
@@ -50,8 +62,8 @@ export function MatchDropdownRow(props: {
     <GhostButton
       ref={ref}
       type="button"
-      className={`${styles.row}${isActive ? ` ${styles.active}` : ""}`}
-      onMouseDown={handleMouseDown}
+      className={cx(styles.row, isActive && styles.active)}
+      onMouseDown={preventDefaultMouseDown}
       onClick={handleClick}
     >
       <span className={styles.text}>
@@ -61,3 +73,4 @@ export function MatchDropdownRow(props: {
     </GhostButton>
   );
 }
+

@@ -7,6 +7,7 @@ export function matchesFromInput(args: {
   setValuesByField: Record<string, string[]>;
   hintsByField: Record<string, Hint[]>;
   pillCountByField: Record<string, number>;
+  favoriteFieldCounts?: Record<string, number>;
   recentByField?: Record<string, unknown[]>;
   matchRanking?: MatchRankingConfig | false;
 }): FieldMatch[] {
@@ -31,9 +32,11 @@ export function matchesFromInput(args: {
   if (prefixField) {
     const afterField = needle.slice(prefixField.name.toLowerCase().length).trim();
     const { op, rest: valueText } = findLeadingOperator(afterField);
+    const lookupMinChars = prefixField.lookupMinChars ?? 0;
 
     // No value typed yet — suppress the dropdown.
     if (!valueText) return [];
+    if (prefixField.type === "set" && valueText.length < lookupMinChars) return [];
 
     // Operator is present but not valid for this field — suppress.
     if (op !== undefined && !operatorsForField(prefixField).includes(op)) return [];
@@ -83,7 +86,12 @@ export function matchesFromInput(args: {
       });
     }
 
-    return results.sort((a, b) => b.rank - a.rank);
+    return results.sort((a, b) => {
+      const aFav = args.favoriteFieldCounts?.[a.field.name] ?? 0;
+      const bFav = args.favoriteFieldCounts?.[b.field.name] ?? 0;
+      if (aFav !== bFav) return bFav - aFav;
+      return b.rank - a.rank;
+    });
   }
 
   // ── Case 2: no field prefix ─────────────────────────────────────────────────
@@ -114,6 +122,10 @@ export function matchesFromInput(args: {
     const matchNeedle = leadingOp !== undefined ? valueNeedle : needle;
 
     if (field.type === "set") {
+      const lookupMinChars = field.lookupMinChars ?? 0;
+      if (matchNeedle.length < lookupMinChars) {
+        continue;
+      }
       const fieldHints = args.hintsByField[field.name] ?? [];
       if (fieldHints.length > 0) {
         for (const hint of fieldHints) {
@@ -190,6 +202,11 @@ export function matchesFromInput(args: {
   }
 
   const defaultSorted = Array.from(deduped.values()).sort((a, b) => {
+    const aFav = args.favoriteFieldCounts?.[a.field.name] ?? 0;
+    const bFav = args.favoriteFieldCounts?.[b.field.name] ?? 0;
+    if (aFav !== bFav) {
+      return bFav - aFav;
+    }
     if (a.field.precedence !== b.field.precedence) {
       return b.field.precedence - a.field.precedence;
     }

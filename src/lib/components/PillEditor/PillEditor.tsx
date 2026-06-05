@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { isValidValue } from "../../operators";
 import { formatDateValue } from "../../parser";
 import type { FieldDefinition, ListPill, RangePill, ValuePill } from "../../types";
 import { PillEditorContext } from "./PillEditorContext";
-import { ListEditor } from "./ListEditor";
+import { getEditorInputType } from "./editorInput";
+import { useResetSuggestionIndex, useSetFilteredOptions } from "./hooks";
 import { RangeEditor } from "./RangeEditor";
 import { ValueEditor } from "./ValueEditor";
 
@@ -40,6 +41,14 @@ export function parseEditorRaw(field: FieldDefinition, raw: string): unknown {
   return raw;
 }
 
+function toPickerInputValue(value: unknown, fieldType: "date" | "datetime"): string {
+  if (!value) return "";
+  if (fieldType === "date") {
+    return formatDateValue(value, "date", "yyyy-MM-dd");
+  }
+  return formatDateValue(value, "datetime", "yyyy-MM-ddTHH:mm:ss");
+}
+
 export function PillEditor(props: {
   pill: ValuePill | ListPill | RangePill;
   field: FieldDefinition;
@@ -51,56 +60,39 @@ export function PillEditor(props: {
 }): JSX.Element {
   const [local, setLocal] = useState(() => {
     const dateField = props.field.type === "date" || props.field.type === "datetime";
-    const fmt = dateField ? (props.field as { dateFormat?: string }).dateFormat : undefined;
     function toDisplay(v: unknown): string {
-      if (dateField && v) return formatDateValue(v, props.field.type as "date" | "datetime", fmt);
+      if (dateField && v) {
+        return toPickerInputValue(v, props.field.type as "date" | "datetime");
+      }
       return valueToText(v);
     }
+    if (props.field.type === "set" && (props.pill.kind === "value" || props.pill.kind === "list")) return "";
     if (props.pill.kind === "list") return props.pill.values.map(toDisplay).join(", ");
     if (props.pill.kind === "range") return toDisplay(props.pill.from);
     return toDisplay(props.pill.value);
   });
   const [localTo, setLocalTo] = useState(() => {
-    const dateField = props.field.type === "date" || props.field.type === "datetime";
-    const fmt = dateField ? (props.field as { dateFormat?: string }).dateFormat : undefined;
     if (props.pill.kind === "range") {
-      if (dateField) return formatDateValue(props.pill.to, props.field.type as "date" | "datetime", fmt);
+      if (props.field.type === "date" || props.field.type === "datetime") {
+        return toPickerInputValue(props.pill.to, props.field.type);
+      }
       return valueToText(props.pill.to);
     }
     return "";
   });
 
-  const options = props.setOptions ?? [];
+  const options = useMemo(() => props.setOptions ?? [], [props.setOptions]);
   const query = local.trim().toLowerCase();
-  const filteredOptions =
-    props.field.type === "set"
-      ? options.filter((opt) => opt.toLowerCase().includes(query))
-      : [];
+  const filteredOptions = useSetFilteredOptions(props.field.type, options, query);
 
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [isError, setIsError] = useState(false);
 
-  useEffect(() => {
-    setSuggestionIndex(0);
-  }, [local]);
+  useResetSuggestionIndex(local, setSuggestionIndex);
 
-  useEffect(() => {
-    if (props.field.type !== "set") return;
-    props.onLookupChange?.(local);
-  // onLookupChange is intentionally excluded — callers may pass inline lambdas.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [local, props.field.type]);
+  const inputType = getEditorInputType(props.field);
 
-  const inputType: "text" | "number" | "date" | "datetime-local" =
-    props.field.type === "datetime"
-      ? "datetime-local"
-      : props.field.type === "date"
-        ? "date"
-        : props.field.type === "integer" || props.field.type === "float"
-          ? "number"
-          : "text";
-
-  function saveRange(): void {
+  const saveRange = useCallback((): void => {
     if (props.pill.kind !== "range") return;
     const from = local.trim();
     const to = localTo.trim();
@@ -118,9 +110,9 @@ export function PillEditor(props: {
       from: parseEditorRaw(props.field, from),
       to: parseEditorRaw(props.field, to),
     });
-  }
+  }, [local, localTo, props]);
 
-  function save(): void {
+  const save = useCallback((): void => {
     const text = local.trim();
     if (!text) {
       props.onCancel();
@@ -179,9 +171,9 @@ export function PillEditor(props: {
     }
 
     props.onCommit({ ...props.pill, value: parseEditorRaw(props.field, text) });
-  }
+  }, [local, options, props]);
 
-  const ctxValue = {
+  const ctxValue = useMemo(() => ({
     pill: props.pill,
     field: props.field,
     options,
@@ -196,9 +188,25 @@ export function PillEditor(props: {
     isError,
     save,
     saveRange,
+    onLookupChange: props.onLookupChange,
     onCommit: props.onCommit,
     onCancel: props.onCancel,
-  };
+  }), [
+    filteredOptions,
+    inputType,
+    isError,
+    local,
+    localTo,
+    options,
+    props.field,
+    props.onCancel,
+    props.onCommit,
+    props.onLookupChange,
+    props.pill,
+    save,
+    saveRange,
+    suggestionIndex,
+  ]);
 
   if (props.field.editor) {
     return (
@@ -219,8 +227,6 @@ export function PillEditor(props: {
     <PillEditorContext.Provider value={ctxValue}>
       {props.pill.kind === "range" ? (
         <RangeEditor />
-      ) : props.pill.kind === "list" ? (
-        <ListEditor />
       ) : (
         <ValueEditor />
       )}

@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useState } from "react";
 import { GhostButton } from "../ui/GhostButton";
-import { ScrollArea } from "@base-ui/react/scroll-area";
-import { useConfigSelector, useDataSelector } from "../../context";
+import { useConfigSelector, useDataSelector, useUiSelector } from "../../context";
 import type { FieldDefinition } from "../../types";
 import { useHintPanelSelector } from "./HintPanelContext";
-import styles from "./HintPanel.module.css";
+import { EfScrollArea } from "./EfScrollArea";
+import { cx, preventDefaultMouseDown } from "../ui/utils";
+import { useScrollIntoViewWhenActive } from "../ui/useScrollIntoViewWhenActive";
+import { useFilteredHintFields } from "./useFilteredHintFields";
+import styles from "./HintPanel.module.less";
 
 function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
   const hasPillSelected = useHintPanelSelector((s) => s.hasPillSelected);
@@ -15,6 +18,12 @@ function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
   const selectField = useHintPanelSelector((s) => s.selectField);
   const onInsertField = useHintPanelSelector((s) => s.onInsertField);
   const aiMode = useHintPanelSelector((s) => s.aiMode);
+  const pills = useDataSelector((s) => s.pills);
+  const setSelectedIds = useUiSelector((s) => s.setSelectedIds);
+  const setEditingId = useUiSelector((s) => s.setEditingId);
+  const setInsertIndex = useUiSelector((s) => s.setInsertIndex);
+  const setActiveField = useUiSelector((s) => s.setActiveField);
+  const setFocused = useUiSelector((s) => s.setFocused);
 
   const fieldPillCount = useDataSelector(
     (s) => s.pills.filter((p) => "fieldName" in p && p.fieldName === field.name).length,
@@ -25,16 +34,21 @@ function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
   const isLockedByPill = !aiMode && hasPillSelected && fixedField !== field.name;
   const isLockedByInput = !aiMode && Boolean(inputField) && inputField?.name !== field.name;
   const isLocked = isLockedByPill || isLockedByInput;
+  const isDisabled = isLockedByInput || atMax;
   const isSelected = effectiveFieldName === field.name;
 
-  const ref = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => {
-    if (isSelected) {
-      ref.current?.scrollIntoView({ block: "nearest" });
-    }
-  }, [isSelected]);
+  const ref = useScrollIntoViewWhenActive<HTMLButtonElement>(isSelected);
 
   function handleSelect(): void {
+    if (isLockedByPill) {
+      setSelectedIds([]);
+      setEditingId(undefined);
+      selectField(field.name);
+      setActiveField(field.name);
+      setInsertIndex(pills.length);
+      setFocused(true);
+      return;
+    }
     if (!isLocked) toggleSelectedField(field.name);
   }
 
@@ -43,18 +57,14 @@ function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
     onInsertField(field);
   }
 
-  function handleInsertMouseDown(e: MouseEvent): void {
-    e.preventDefault();
-  }
-
   return (
     <div className={styles.fieldRow}>
       <GhostButton
         ref={ref}
         type="button"
-        className={`${styles.fieldOption}${isSelected ? ` ${styles.active}` : ""}`}
+        className={cx(styles.fieldOption, isSelected && styles.active)}
         onClick={handleSelect}
-        disabled={isLocked || atMax}
+        disabled={isDisabled}
       >
         {field.label ?? field.name}
       </GhostButton>
@@ -63,7 +73,7 @@ function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
           data-size="icon-sm"
           type="button"
           className={styles.fieldPlus}
-          onMouseDown={handleInsertMouseDown}
+          onMouseDown={preventDefaultMouseDown}
           onClick={handleInsert}
           disabled={atMax}
           aria-label={`Insert ${field.label ?? field.name}`}
@@ -78,20 +88,19 @@ function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
 export function HintFields(): JSX.Element {
   const rawFields = useConfigSelector((s) => s.fields);
   const hintFieldSearch = useConfigSelector((s) => s.hintFieldSearch);
+  const favoritesFieldName = useHintPanelSelector((s) => s.favoritesFieldName);
+  const showFavoritesField = useHintPanelSelector((s) => s.showFavoritesField);
+  const isFavoritesSelected = useHintPanelSelector((s) => s.isFavoritesSelected);
+  const selectFavorites = useHintPanelSelector((s) => s.selectFavorites);
+  const setSelectedIds = useUiSelector((s) => s.setSelectedIds);
+  const setEditingId = useUiSelector((s) => s.setEditingId);
   const [searchText, setSearchText] = useState("");
-
-  const fields = useMemo(() => {
-    const sorted = [...rawFields].sort((a, b) => {
-      const aOrder = a.hintOrder ?? Infinity;
-      const bOrder = b.hintOrder ?? Infinity;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      return rawFields.indexOf(a) - rawFields.indexOf(b);
-    });
-    if (!hintFieldSearch || !searchText.trim()) return sorted;
-    const needle = searchText.trim().toLowerCase();
-    return sorted.filter((f) => (f.label ?? f.name).toLowerCase().includes(needle));
-  }, [rawFields, hintFieldSearch, searchText]);
+  const fields = useFilteredHintFields({ rawFields, hintFieldSearch, searchText });
   const fieldColumns = useHintPanelSelector((s) => s.fieldColumns);
+
+  const handleFieldSearchChange = useCallback((value: string): void => {
+    setSearchText(value);
+  }, []);
 
   const viewportStyle =
     fieldColumns > 1
@@ -111,26 +120,35 @@ export function HintFields(): JSX.Element {
             className={styles.fieldSearchInput}
             placeholder="Search fields…"
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => handleFieldSearchChange(e.target.value)}
             onMouseDown={(e) => e.stopPropagation()}
           />
         </div>
       )}
-      <ScrollArea.Root
-        className={styles.scrollRoot}
-        style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
-      >
-        <ScrollArea.Viewport className={styles.scrollViewport}>
-          <div style={viewportStyle}>
-            {fields.map((field) => (
-              <FieldRow key={field.name} field={field} />
-            ))}
-          </div>
-        </ScrollArea.Viewport>
-        <ScrollArea.Scrollbar orientation="vertical" className={styles.scrollbar}>
-          <ScrollArea.Thumb className={styles.scrollThumb} />
-        </ScrollArea.Scrollbar>
-      </ScrollArea.Root>
+      <EfScrollArea style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+        <div style={viewportStyle}>
+          {showFavoritesField && (
+            <div className={styles.fieldRow}>
+              <GhostButton
+                type="button"
+                className={cx(styles.fieldOption, isFavoritesSelected && styles.active)}
+                onClick={() => {
+                  setSelectedIds([]);
+                  setEditingId(undefined);
+                  selectFavorites();
+                }}
+                data-ef={favoritesFieldName}
+              >
+                Favorites
+              </GhostButton>
+            </div>
+          )}
+          {fields.map((field) => (
+            <FieldRow key={field.name} field={field} />
+          ))}
+        </div>
+      </EfScrollArea>
     </div>
   );
 }
+

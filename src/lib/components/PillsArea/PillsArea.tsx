@@ -1,4 +1,5 @@
 import {
+  type ClipboardEvent,
   Fragment,
   type KeyboardEvent,
   type RefObject,
@@ -9,12 +10,13 @@ import { useDataSelector, useUiSelector } from "../../context";
 import { FilterPill } from "../FilterPill/FilterPill";
 import { InsertZone } from "./InsertZone";
 import { PillsAreaContext } from "./PillsAreaContext";
-import styles from "./PillsArea.module.css";
+import styles from "./PillsArea.module.less";
 
 export function PillsArea(props: {
   pillsAreaRef: RefObject<HTMLDivElement>;
   inputRef: RefObject<HTMLInputElement>;
   onInputKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
+  onInputPaste: (e: ClipboardEvent<HTMLInputElement>) => void;
   onMoveInputToSlot: (slot: number) => void;
   onFocusRoot: () => void;
 }): JSX.Element {
@@ -31,8 +33,9 @@ export function PillsArea(props: {
       onMoveInputToSlot: props.onMoveInputToSlot,
       inputRef: props.inputRef,
       onInputKeyDown: props.onInputKeyDown,
+      onInputPaste: props.onInputPaste,
     }),
-    [props.onFocusRoot, props.onMoveInputToSlot, props.inputRef, props.onInputKeyDown],
+    [props.onFocusRoot, props.onMoveInputToSlot, props.inputRef, props.onInputKeyDown, props.onInputPaste],
   );
 
   return (
@@ -49,3 +52,4 @@ export function PillsArea(props: {
     </PillsAreaContext.Provider>
   );
 }
+

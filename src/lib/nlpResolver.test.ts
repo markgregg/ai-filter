@@ -1930,3 +1930,82 @@ describe("NLP resolver — invalid pill for non-matching values", () => {
     expect(p.invalid).toBe(true);
   });
 });
+
+describe("NLP resolver — additional branch coverage", () => {
+  it("handles split datetime phrase with unrecognized operator token", () => {
+    const p = resolveNlpExpression("created 2 hours ago", FIELDS) as ValuePill;
+    expect(p.kind).toBe("value");
+    expect(p.fieldName).toBe("created");
+    expect(p.operator).toBe("=");
+    expect(typeof p.value).toBe("string");
+    expect(p.value as string).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it("uses matching custom value resolver when provided", () => {
+    const fields: FieldDefinition[] = [{ name: "count", type: "integer", precedence: 1 }];
+    const pill = resolveNlpExpression("count = 12", fields, {
+      valueResolvers: [
+        { fieldName: "title", resolve: () => "skip" },
+        { fieldName: "count", resolve: () => 999 },
+      ],
+    }) as ValuePill;
+
+    expect(pill.kind).toBe("value");
+    expect(pill.value).toBe(999);
+  });
+
+  it("falls back to built-in parsing when resolver returns undefined", () => {
+    const fields: FieldDefinition[] = [{ name: "count", type: "integer", precedence: 1 }];
+    const pill = resolveNlpExpression("count = 12", fields, {
+      valueResolvers: [
+        { fieldName: "title", resolve: () => "skip" },
+        { fieldName: "count", resolve: () => undefined },
+      ],
+    }) as ValuePill;
+
+    expect(pill.kind).toBe("value");
+    expect(pill.value).toBe(12);
+  });
+
+  it("returns undefined for single-token input when fallback is disabled", () => {
+    const fields: FieldDefinition[] = [{ name: "count", type: "integer", precedence: 1 }];
+    const pill = resolveNlpExpression("nonsense", fields, { fallbackToHighestPrecedence: false });
+    expect(pill).toBeUndefined();
+  });
+
+  it("parses datetime values via Date parsing when phrase aliases do not match", () => {
+    const p = resolveNlpExpression("created = 2026-01-15T10:20:30Z", FIELDS) as ValuePill;
+    expect(p.kind).toBe("value");
+    expect(p.fieldName).toBe("created");
+    expect(typeof p.value).toBe("string");
+    expect(p.value as string).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it("prefers date-like fields for fieldless date ranges", () => {
+    const fields: FieldDefinition[] = [
+      { name: "due", type: "date", precedence: 1 },
+      { name: "title", type: "string", precedence: 2 },
+    ];
+    const pills = resolveNlpQuery("from today to tomorrow", fields);
+    expect(pills).toHaveLength(1);
+    expect(pills[0]).toMatchObject({ kind: "range", fieldName: "due" });
+  });
+
+  it("keeps invalid datetime text when neither date phrase nor Date parsing resolves", () => {
+    const p = resolveNlpExpression("created = not-a-date", FIELDS) as ValuePill;
+    expect(p.kind).toBe("value");
+    expect(p.fieldName).toBe("created");
+    expect(p.value).toBe("not-a-date");
+    expect(p.invalid).toBe(true);
+  });
+
+  it("parses fieldless between date phrases as a date range", () => {
+    const fields: FieldDefinition[] = [
+      { name: "due", type: "date", precedence: 1 },
+      { name: "title", type: "string", precedence: 2 },
+    ];
+    const pill = resolveNlpExpression("between today and tomorrow", fields) as RangePill;
+    expect(pill.kind).toBe("range");
+    expect(pill.fieldName).toBe("due");
+  });
+});

@@ -107,6 +107,11 @@ describe("formatDateValue", () => {
   it("returns raw string for unparseable value", () => {
     expect(formatDateValue("not-a-date", "date")).toBe("not-a-date");
   });
+
+  it("date fields never render time tokens from custom format", () => {
+    const d = new Date(2024, 5, 15, 14, 30, 45);
+    expect(formatDateValue(d, "date", "MM/dd/yyyy HH:mm:ss")).toBe("06/15/2024");
+  });
 });
 
 // ── parseLogicalToken ────────────────────────────────────────────────────────
@@ -571,6 +576,16 @@ describe("parseInputToPill — operator fallback to allowed operators", () => {
   });
 });
 
+describe("parseInputToPill — datetime ranges", () => {
+  it("parses datetime 'from to' input into a range pill", () => {
+    const p = parseInput("created 2024-06-15 10:00:00 to 2024-06-16 11:30:00") as RangePill;
+    expect(p?.kind).toBe("range");
+    expect(p?.fieldName).toBe("created");
+    expect(String(p?.from)).toMatch(/2024/);
+    expect(String(p?.to)).toMatch(/2024/);
+  });
+});
+
 // ── pillLabel ────────────────────────────────────────────────────────────────
 
 describe("pillLabel", () => {
@@ -628,5 +643,27 @@ describe("pillLabel", () => {
     // integer default is =, so label should omit the operator
     const pill: ValuePill = { id: "x", kind: "value", fieldName: "count", operator: "=", value: 5 };
     expect(pillLabel(pill, FIELDS)).toBe("count: 5");
+  });
+
+  it("formats date value pill using date-only format", () => {
+    const pill: ValuePill = {
+      id: "x",
+      kind: "value",
+      fieldName: "due",
+      operator: "=",
+      value: "2024-06-15T13:22:11.000Z",
+    };
+    expect(pillLabel(pill, FIELDS)).toBe("due: 2024-06-15");
+  });
+
+  it("formats datetime value pill using datetime format", () => {
+    const pill: ValuePill = {
+      id: "x",
+      kind: "value",
+      fieldName: "created",
+      operator: "=",
+      value: "2024-06-15T13:22:11.000Z",
+    };
+    expect(pillLabel(pill, FIELDS)).toMatch(/^created: 2024-06-15\s\d{2}:\d{2}:\d{2}$/);
   });
 });

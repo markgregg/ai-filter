@@ -1,40 +1,51 @@
-import type { MouseEvent } from "react";
-import { GhostButton } from "../ui/GhostButton";
+import { memo, useCallback } from "react";
 import { usePillEditorSelector } from "./PillEditorContext";
-import styles from "./PillEditor.module.css";
+import type { ListPill, RangePill, ValuePill } from "../../types";
+import { SuggestionOption } from "./SuggestionOption";
+import styles from "./PillEditor.module.less";
 
-function SuggestionOption(props: { option: string; index: number }): JSX.Element {
+function commitSuggestionOption(args: {
+  option: string;
+  index: number;
+  suggestionIndex: number;
+  setLocal: (next: string) => void;
+  onCommit: (pill: ValuePill | ListPill | RangePill) => void;
+  pill: ValuePill | ListPill | RangePill;
+}): void {
+  const { option, index, suggestionIndex, setLocal, onCommit, pill } = args;
+  if (index !== suggestionIndex) return;
+  setLocal(option);
+  if (pill.kind === "value") {
+    onCommit({ ...pill, value: option });
+  } else if (pill.kind === "list") {
+    onCommit({ ...pill, values: [option] });
+  }
+}
+
+const SuggestionOptionRow = memo(function SuggestionOptionRow(props: { option: string; index: number }): JSX.Element {
   const { option, index } = props;
 
   const pill = usePillEditorSelector((s) => s.pill);
   const setLocal = usePillEditorSelector((s) => s.setLocal);
   const onCommit = usePillEditorSelector((s) => s.onCommit);
-  const isActive = usePillEditorSelector((s) => s.suggestionIndex === index);
+  const suggestionIndex = usePillEditorSelector((s) => s.suggestionIndex);
+  const isActive = suggestionIndex === index;
 
-  function handleMouseDown(e: MouseEvent): void {
-    e.preventDefault();
-  }
-
-  function handleClick(): void {
-    setLocal(option);
-    if (pill.kind === "value") {
-      onCommit({ ...pill, value: option });
-    } else if (pill.kind === "list") {
-      onCommit({ ...pill, values: [option] });
-    }
-  }
+  const handleClick = useCallback((): void => {
+    commitSuggestionOption({
+      option,
+      index,
+      suggestionIndex,
+      setLocal,
+      onCommit,
+      pill,
+    });
+  }, [index, onCommit, option, pill, setLocal, suggestionIndex]);
 
   return (
-    <GhostButton
-      type="button"
-      className={`${styles.suggestion}${isActive ? ` ${styles.active}` : ""}`}
-      onMouseDown={handleMouseDown}
-      onClick={handleClick}
-    >
-      {option}
-    </GhostButton>
+    <SuggestionOption option={option} isActive={isActive} onSelect={handleClick} />
   );
-}
+});
 
 export function SuggestionList({ inPortal = false }: { inPortal?: boolean }): JSX.Element | null {
   const field = usePillEditorSelector((s) => s.field);
@@ -48,7 +59,7 @@ export function SuggestionList({ inPortal = false }: { inPortal?: boolean }): JS
     <div className={cls} role="listbox" aria-label="Value suggestions">
       {filteredOptions.length ? (
         filteredOptions.map((option, index) => (
-          <SuggestionOption key={option} option={option} index={index} />
+          <SuggestionOptionRow key={option} option={option} index={index} />
         ))
       ) : (
         <div className={styles.noOptions}>No valid options</div>

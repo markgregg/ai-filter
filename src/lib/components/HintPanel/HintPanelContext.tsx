@@ -1,10 +1,11 @@
-import { createContext, useContextSelector } from "use-context-selector";
+import { createSelectorContext } from "../../createSelectorContext";
 import type { AnyOperator, FieldDefinition, Hint } from "../../types";
 
 export type HintPanelCtx = {
   currentField: FieldDefinition;
   operators: AnyOperator[];
   hints: Hint[];
+  hintEntries: Array<{ field: FieldDefinition; hint: Hint }>;
   activeOperator: AnyOperator | undefined;
   selectedValues: Set<string>;
   hasPillSelected: boolean;
@@ -21,19 +22,52 @@ export type HintPanelCtx = {
   hintVirtualized: boolean;
   /** Number of columns for the fields list. */
   fieldColumns: number;
+  favoritesFieldName: string;
+  showFavoritesField: boolean;
+  isFavoritesSelected: boolean;
   toggleSelectedField: (name: string) => void;
   selectField: (name: string) => void;
+  selectFavorites: () => void;
   onPickHint: (field: FieldDefinition, hint: Hint, isSelected: boolean) => void;
   onPickOperator: (field: FieldDefinition, operator: AnyOperator) => void;
   onInsertField: (field: FieldDefinition) => void;
   onInsertLogical: (token: string) => void;
 };
 
-export const HintPanelContext = createContext<HintPanelCtx | null>(null);
+const FALLBACK_FIELD: FieldDefinition = {
+  name: "__fallback__",
+  label: "Fallback",
+  type: "string",
+  precedence: 0,
+};
 
-export function useHintPanelSelector<T>(selector: (ctx: HintPanelCtx) => T): T {
-  return useContextSelector(HintPanelContext, (value) => {
-    if (!value) throw new Error("useHintPanelSelector must be used inside HintPanel");
-    return selector(value);
-  });
-}
+const DEFAULT_HINT_PANEL_CTX: HintPanelCtx = {
+  currentField: FALLBACK_FIELD,
+  operators: [],
+  hints: [],
+  hintEntries: [],
+  activeOperator: undefined,
+  selectedValues: new Set<string>(),
+  hasPillSelected: false,
+  fixedField: undefined,
+  effectiveFieldName: undefined,
+  inputField: undefined,
+  aiMode: false,
+  onAiAppendText: () => undefined,
+  hintColumns: 1,
+  hintVirtualized: false,
+  fieldColumns: 1,
+  favoritesFieldName: "__favorites__",
+  showFavoritesField: false,
+  isFavoritesSelected: false,
+  toggleSelectedField: () => undefined,
+  selectField: () => undefined,
+  selectFavorites: () => undefined,
+  onPickHint: () => undefined,
+  onPickOperator: () => undefined,
+  onInsertField: () => undefined,
+  onInsertLogical: () => undefined,
+};
+
+export const [HintPanelContext, useHintPanelSelector] =
+  createSelectorContext<HintPanelCtx>("HintPanel", DEFAULT_HINT_PANEL_CTX);

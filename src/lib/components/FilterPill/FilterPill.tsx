@@ -7,7 +7,7 @@ import { usePillsAreaSelector } from "../PillsArea/PillsAreaContext";
 import { usePillDrag } from "../PillsArea/usePillDragDrop";
 import type { FilterPill as FilterPillType, ListPill, RangePill, ValuePill } from "../../types";
 import { PillEditor } from "../PillEditor/PillEditor";
-import styles from "./FilterPill.module.css";
+import styles from "./FilterPill.module.less";
 
 export function FilterPill(props: {
   pill: FilterPillType;
@@ -28,6 +28,7 @@ export function FilterPill(props: {
   const setSelectedIds = useUiSelector((s) => s.setSelectedIds);
   const editingId = useUiSelector((s) => s.editingId);
   const setEditingId = useUiSelector((s) => s.setEditingId);
+  const setHintValueFilterText = useUiSelector((s) => s.setHintValueFilterText);
   const setInsertIndex = useUiSelector((s) => s.setInsertIndex);
 
   const onFocusRoot = usePillsAreaSelector((s) => s.onFocusRoot);
@@ -58,6 +59,7 @@ export function FilterPill(props: {
     e.stopPropagation();
     if (field?.type === "boolean") return;
     if (pill.kind === "value" || pill.kind === "list" || pill.kind === "range") {
+      setHintValueFilterText("");
       setEditingId(pill.id);
       setSelectedIds([pill.id]);
     }
@@ -149,17 +151,25 @@ export function FilterPill(props: {
           pill={pill}
           field={field}
           setOptions={field.type === "set" ? setValuesByField[field.name] ?? [] : undefined}
-          onLookupChange={field.type === "set" && typeof field.setValues === "function"
-            ? (text) => { loadSetValues(field, text).catch(() => {}); }
-            : undefined
-          }
+          onLookupChange={field.type === "set"
+            ? (text) => {
+                setHintValueFilterText(text);
+                if (typeof field.setValues === "function") {
+                  loadSetValues(field, text).catch(() => {});
+                }
+              }
+            : undefined}
           onCommit={(next) => {
             setPills((prev) =>
               normalizePills(prev.map((p) => (p.id === next.id ? next : p))),
             );
+            setHintValueFilterText("");
             setEditingId(undefined);
           }}
-          onCancel={() => setEditingId(undefined)}
+          onCancel={() => {
+            setHintValueFilterText("");
+            setEditingId(undefined);
+          }}
         />
       ) : (
         <>
@@ -207,3 +217,4 @@ export function FilterPill(props: {
 // Re-export types that PillEditor needs, so callers don't need to import them
 // from types.ts directly.
 export type { ListPill, RangePill, ValuePill };
+

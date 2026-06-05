@@ -1,10 +1,10 @@
-import { useRef, type ChangeEvent, type KeyboardEvent } from "react";
-import { NumberField } from "@base-ui/react/number-field";
+import { useEffect, useRef, type ChangeEvent, type KeyboardEvent } from "react";
 import { EfInput } from "../ui/EfInput";
 import { usePillEditorSelector } from "./PillEditorContext";
 import { SuggestionList } from "./SuggestionList";
 import { PortalDropdown } from "./PortalDropdown";
-import styles from "./PillEditor.module.css";
+import { NumericInput } from "./NumericInput";
+import styles from "./PillEditor.module.less";
 
 export function ValueEditor(): JSX.Element {
   const field = usePillEditorSelector((s) => s.field);
@@ -19,11 +19,21 @@ export function ValueEditor(): JSX.Element {
   const onCommit = usePillEditorSelector((s) => s.onCommit);
   const save = usePillEditorSelector((s) => s.save);
   const onCancel = usePillEditorSelector((s) => s.onCancel);
+  const onLookupChange = usePillEditorSelector((s) => s.onLookupChange);
 
-  const supportsSuggestions = field.type === "set";
+  const usesHintFiltering =
+    field.type === "set" && (pill.kind === "value" || pill.kind === "list");
+  const supportsSuggestions = field.type === "set" && !usesHintFiltering;
   const isNumeric = field.type === "integer" || field.type === "float";
   const editorClass = `${styles.editor}${isError ? ` ${styles.editorError}` : ""}`;
   const anchorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (field.type !== "set") return;
+    onLookupChange?.(local);
+  // onLookupChange is intentionally excluded — callers may pass inline lambdas.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field.type, local]);
 
   function handleChange(e: ChangeEvent<HTMLInputElement>): void {
     setLocal(e.target.value);
@@ -61,23 +71,14 @@ export function ValueEditor(): JSX.Element {
 
   if (isNumeric) {
     return (
-      <NumberField.Root
-        value={local === "" ? null : Number(local)}
-        onValueChange={(v) => setLocal(v == null ? "" : String(v))}
+      <NumericInput
+        value={local}
+        onChange={setLocal}
         step={field.type === "float" ? "any" : 1}
-        format={{ useGrouping: false }}
-      >
-        <NumberField.Group className={styles.numGroup}>
-          <NumberField.Decrement className={styles.numBtn}>−</NumberField.Decrement>
-          <NumberField.Input
-            data-slot="input"
-            className={editorClass}
-            onKeyDown={handleKeyDown}
-            autoFocus
-          />
-          <NumberField.Increment className={styles.numBtn}>+</NumberField.Increment>
-        </NumberField.Group>
-      </NumberField.Root>
+        className={editorClass}
+        onKeyDown={handleKeyDown}
+        autoFocus
+      />
     );
   }
 

@@ -1,4 +1,5 @@
 import {
+  type ClipboardEvent,
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -8,14 +9,13 @@ import {
   useState,
 } from "react";
 import { GhostButton } from "../ui/GhostButton";
-import { EfInput } from "../ui/EfInput";
 import {
   AiFilterProvider,
   useConfigSelector,
   useDataSelector,
   useUiSelector,
 } from "../../context";
-import { findLeadingOperator } from "../../operators";
+import { findLeadingOperator, operatorsForField } from "../../operators";
 import { makeId, normalizePills, parseInputToPill } from "../../parser";
 import { fieldsFromAgGrid, mergeWithAgGridFields } from "../../agGridAdapter";
 import { syncAgGridExternalFilter } from "../../agGridExternalFilter";
@@ -38,18 +38,18 @@ import { HourglassIcon } from "../SearchIcon/HourglassIcon";
 import { SearchIcon } from "../SearchIcon/SearchIcon";
 import { aiToFilterPills } from "./aiPrompt";
 import { matchesFromInput } from "./AiFilter.utils";
-import styles from "./AiFilter.module.css";
+import styles from "./AiFilter.module.less";
 
 function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme" | "matchDropdownMaxHeight" | "suggestionsDropdownSticky" | "hintPanelMaxHeight" | "hintColumns" | "matchRanking" | "hintVirtualized">): JSX.Element {
   const fields = useConfigSelector((s) => s.fields);
   const onClear = useConfigSelector((s) => s.onClear);
-  const aiPlaceholder = useConfigSelector((s) => s.aiPlaceholder);
 
   const pills = useDataSelector((s) => s.pills);
   const setPills = useDataSelector((s) => s.setPills);
   const setValuesByField = useDataSelector((s) => s.setValuesByField);
   const hintsByField = useDataSelector((s) => s.hintsByField);
   const recentByField = useDataSelector((s) => s.recentByField);
+  const favoriteFieldCounts = useDataSelector((s) => s.favoriteFieldCounts);
   const loadSetValues = useDataSelector((s) => s.loadSetValues);
   const rememberValue = useDataSelector((s) => s.rememberValue);
 
@@ -63,6 +63,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
   const setSelectedIds = useUiSelector((s) => s.setSelectedIds);
   const editingId = useUiSelector((s) => s.editingId);
   const setEditingId = useUiSelector((s) => s.setEditingId);
+  const setHintValueFilterText = useUiSelector((s) => s.setHintValueFilterText);
   const activeField = useUiSelector((s) => s.activeField);
   const setActiveField = useUiSelector((s) => s.setActiveField);
   const highlightIndex = useUiSelector((s) => s.highlightIndex);
@@ -71,31 +72,10 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
   const inputRef = useRef<HTMLInputElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const pillsAreaRef = useRef<HTMLDivElement | null>(null);
-  const aiInputRef = useRef<HTMLInputElement | null>(null);
 
   const aiConfig = props.ai === false || props.ai == null ? false : props.ai;
-
-  // "ai"     – default when empty: AI icon shown, AI text input
-  // "manual" – user switched to pill entry: hourglass (no pills) or magnifying glass (has pills)
-  const [mode, setMode] = useState<"ai" | "manual">(aiConfig ? "ai" : "manual");
-  const [aiQuery, setAiQuery] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-
-  // Return to AI mode whenever the filter becomes fully empty.
-  // IMPORTANT: `mode` and `aiLoading` are intentionally omitted from deps.
-  // Including them causes a race: use-context-selector propagates the `pills`
-  // context update in a separate render from local `setMode("manual")`, so
-  // the effect would fire with mode="manual" but pills=[] and immediately
-  // reset back to "ai" before the new pills arrive.
-  useEffect(() => {
-    if (aiConfig && mode === "manual" && pills.length === 0 && !inputValue) {
-      setMode("ai");
-      setAiQuery("");
-      setAiError(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pills, inputValue, !!aiConfig]);
 
   function focusInput(): void {
     requestAnimationFrame(() => {
@@ -164,6 +144,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
         fields,
         setValuesByField,
         hintsByField,
+        favoriteFieldCounts,
         recentByField,
         matchRanking: props.matchRanking,
         pillCountByField: pills.reduce<Record<string, number>>((acc, p) => {
@@ -171,11 +152,11 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
           return acc;
         }, {}),
       }),
-    [inputValue, fields, setValuesByField, hintsByField, recentByField, props.matchRanking, pills],
+    [inputValue, fields, setValuesByField, hintsByField, favoriteFieldCounts, recentByField, props.matchRanking, pills],
   );
 
   const keepSuggestionsVisible =
-    Boolean(props.suggestionsDropdownSticky) && mode !== "ai";
+    Boolean(props.suggestionsDropdownSticky);
 
   const inputContext = useMemo(() => {
     const trimmed = inputValue.trim();
@@ -259,34 +240,28 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
 
     setInputValue("");
     setHighlightIndex(0);
-    setSelectedIds([]);
+    setSelectedIds([parsed.id]);
     setEditingId(undefined);
-    setInsertIndex(willReplace ? insertIndex : insertIndex + 1);
+    setInsertIndex(willReplace ? insertIndex - 1 : insertIndex);
     focusInput();
   }
 
-  function switchToManual(): void {
-    setMode("manual");
-    setAiError(null);
-    setAiLoading(false);
-    setFocused(true);
-    focusInput();
-  }
-
-  async function submitAiQuery(): Promise<void> {
-    const query = aiQuery.trim();
-    if (!query || !aiConfig) return;
+  async function submitAiQuery(query: string): Promise<void> {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || !aiConfig) return;
     setAiLoading(true);
     setAiError(null);
     try {
-      const newPills = await aiToFilterPills(query, fields, setValuesByField, aiConfig.resolve);
+      const newPills = await aiToFilterPills(trimmedQuery, fields, setValuesByField, aiConfig.resolve);
       if (newPills.length === 0) {
         setAiError("No filter conditions could be parsed. Try rephrasing your query.");
         return;
       }
       setPills(normalizePills(newPills));
       setInsertIndex(newPills.length);
-      setMode("manual");
+      setInputValue("");
+      setSelectedIds([]);
+      setEditingId(undefined);
       focusInput();
     } catch (err) {
       setAiError(err instanceof Error ? err.message : "AI request failed");
@@ -295,41 +270,16 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
     }
   }
 
-  function onAiKeyDown(e: KeyboardEvent<HTMLInputElement>): void {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      void submitAiQuery();
-    }
-    if (e.key === "Escape") {
-      switchToManual();
-    }
-  }
-
-  function onAiAppendText(text: string): void {
-    setAiQuery((prev) => {
-      const trimmed = prev.trimEnd();
-      return trimmed ? `${trimmed} ${text}` : text;
-    });
-    requestAnimationFrame(() => {
-      const el = aiInputRef.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
-    });
-  }
-
-  // Focus the AI input whenever mode switches to "ai".
   useEffect(() => {
-    if (mode === "ai") {
-      setFocused(true);
-      requestAnimationFrame(() => aiInputRef.current?.focus());
+    if (!editingId) {
+      setHintValueFilterText("");
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [editingId, setHintValueFilterText]);
 
   function clearAll(): void {
     setPills([]);
     setInputValue("");
+    setHintValueFilterText("");
     setSelectedIds([]);
     onClear?.();
     // Mode will reset to "ai" via the useEffect watching pills/inputValue.
@@ -369,6 +319,10 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
 
     if (e.key === "Enter") {
       e.preventDefault();
+      if (aiConfig && !aiLoading && inputValue.trim() && matches.length === 0) {
+        void submitAiQuery(inputValue);
+        return;
+      }
       commitInput();
       return;
     }
@@ -407,22 +361,114 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
       return;
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
-      e.preventDefault();
-      void navigator.clipboard.readText().then((value) => {
-        if (!value.startsWith("ai-filter:")) return;
-        try {
-          const pasted = JSON.parse(value.slice("ai-filter:".length)) as FilterPill[];
-          setPills((prev) => {
-            const next = [...prev];
-            next.splice(insertIndex, 0, ...pasted.map((pill) => ({ ...pill, id: makeId() })));
-            return normalizePills(next);
-          });
-        } catch {
-          // Ignore malformed clipboard payload.
-        }
-      });
+  }
+
+  function splitDelimitedValues(text: string): string[] | undefined {
+    if (!/[\t\n\r,]/.test(text)) return undefined;
+    const values = text
+      .split(/[\t\n\r,]+/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+    return values.length > 1 ? values : undefined;
+  }
+
+  function insertRawPasteText(text: string): void {
+    const el = inputRef.current;
+    if (!el) {
+      setInputValue((prev) => `${prev}${text}`);
+      return;
     }
+    const start = el.selectionStart ?? inputValue.length;
+    const end = el.selectionEnd ?? inputValue.length;
+    const next = `${inputValue.slice(0, start)}${text}${inputValue.slice(end)}`;
+    setInputValue(next);
+    requestAnimationFrame(() => {
+      const pos = start + text.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
+
+  function pasteStructuredPills(value: string): void {
+    if (!value.startsWith("ai-filter:")) return;
+    try {
+      const pasted = JSON.parse(value.slice("ai-filter:".length)) as FilterPill[];
+      setPills((prev) => {
+        const next = [...prev];
+        next.splice(insertIndex, 0, ...pasted.map((pill) => ({ ...pill, id: makeId() })));
+        return normalizePills(next);
+      });
+    } catch {
+      // Ignore malformed clipboard payload.
+    }
+  }
+
+  function promptPasteField(fieldsToChoose: FieldDefinition[]): FieldDefinition | undefined {
+    if (fieldsToChoose.length === 1) return fieldsToChoose[0];
+    const message = [
+      "Multiple fields match the pasted values. Choose a field:",
+      ...fieldsToChoose.map((field, i) => `${i + 1}. ${field.label ?? field.name}`),
+    ].join("\n");
+    const response = window.prompt(message, "1");
+    if (!response) return undefined;
+    const index = Number.parseInt(response, 10) - 1;
+    if (Number.isNaN(index) || index < 0 || index >= fieldsToChoose.length) return undefined;
+    return fieldsToChoose[index];
+  }
+
+  async function fieldMatchesPastedValues(field: FieldDefinition, values: string[]): Promise<boolean> {
+    if (!operatorsForField(field).includes("in")) return false;
+
+    if (field.pasteMatch) {
+      const checks = await Promise.all(values.map((v) => Promise.resolve(field.pasteMatch?.(v))));
+      return checks.every(Boolean);
+    }
+
+    if (field.type !== "set") return false;
+    const knownValues = Array.isArray(field.setValues)
+      ? field.setValues
+      : (setValuesByField[field.name] ?? []);
+    if (!knownValues.length) return false;
+
+    const known = new Set(knownValues.map((v) => String(v).toLowerCase()));
+    return values.every((value) => known.has(value.toLowerCase()));
+  }
+
+  async function tryHandleDelimitedPaste(values: string[]): Promise<boolean> {
+    const listFields = fields.filter((field) => operatorsForField(field).includes("in"));
+    const matchesField: FieldDefinition[] = [];
+
+    for (const field of listFields) {
+      if (await fieldMatchesPastedValues(field, values)) {
+        matchesField.push(field);
+      }
+    }
+
+    if (!matchesField.length) return false;
+    const selectedField = promptPasteField(matchesField);
+    if (!selectedField) return true;
+    commitInput(`${selectedField.name} in ${values.join(",")}`);
+    return true;
+  }
+
+  function onInputPaste(e: ClipboardEvent<HTMLInputElement>): void {
+    const text = e.clipboardData?.getData("text") ?? "";
+    if (!text) return;
+
+    if (text.startsWith("ai-filter:")) {
+      e.preventDefault();
+      pasteStructuredPills(text);
+      return;
+    }
+
+    const values = splitDelimitedValues(text);
+    if (!values) return;
+
+    e.preventDefault();
+    void tryHandleDelimitedPaste(values).then((handled) => {
+      if (!handled) {
+        insertRawPasteText(text);
+      }
+    });
   }
 
   function pickMatch(match: FieldMatch): void {
@@ -636,7 +682,6 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
   }
 
   function handlePickHint(field: FieldDefinition, hint: Hint, isSelected: boolean): void {
-    if (mode === "ai") switchToManual();
     pickHint(field, hint, isSelected);
   }
 
@@ -768,89 +813,48 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
           .filter(Boolean)
           .join(" ")}
       >
-        <div className={styles.frame} onMouseDown={mode === "ai" ? undefined : handleFrameMouseDown}>
-          {mode === "ai" ? (
-            // AI icon — clicking switches to manual pill entry
+        <div className={styles.frame} onMouseDown={handleFrameMouseDown}>
+          <div
+            className={styles.leftIcon}
+            aria-hidden="true"
+            data-ef={aiConfig ? "left-ai-icon" : "left-filter-icon"}
+          >
+            {aiConfig ? <AiIcon /> : (pills.length > 0 ? <SearchIcon /> : <HourglassIcon />)}
+          </div>
+          <PillsArea
+            pillsAreaRef={pillsAreaRef}
+            inputRef={inputRef}
+            onInputKeyDown={onInputKeyDown}
+            onInputPaste={onInputPaste}
+            onMoveInputToSlot={moveInputToSlot}
+            onFocusRoot={focusRoot}
+          />
+          {(pills.length > 0 || inputValue) && (
             <GhostButton
               data-size="icon-sm"
-              className={styles.aiIconBtn}
+              className={styles.clear}
               type="button"
-              aria-label="Switch to manual filter entry"
-              onClick={switchToManual}
+              data-ef="clear"
+              onClick={clearAll}
             >
-              <AiIcon />
+              ×
             </GhostButton>
-          ) : (
-            <div className={styles.leftIcon} aria-hidden="true">
-              {pills.length > 0 ? <SearchIcon /> : <HourglassIcon />}
-            </div>
-          )}
-          {mode === "ai" ? (
-            <div className={styles.aiInputWrap}>
-              <EfInput
-                ref={aiInputRef}
-                className={styles.aiInput}
-                type="text"
-                value={aiQuery}
-                onChange={(e) => setAiQuery(e.target.value)}
-                onKeyDown={onAiKeyDown}
-                placeholder={aiPlaceholder ?? "Describe your filter in plain English…"}
-                disabled={aiLoading}
-                aria-label="AI filter query"
-              />
-              {aiLoading && <span className={styles.aiSpinner} aria-label="Processing…" />}
-            </div>
-          ) : (
-            <PillsArea
-              pillsAreaRef={pillsAreaRef}
-              inputRef={inputRef}
-              onInputKeyDown={onInputKeyDown}
-              onMoveInputToSlot={moveInputToSlot}
-              onFocusRoot={focusRoot}
-            />
-          )}
-          {mode === "ai" ? (
-            aiQuery && (
-              <GhostButton
-                data-size="icon-sm"
-                className={styles.clear}
-                type="button"
-                aria-label="Clear AI query"
-                onClick={() => { setAiQuery(""); setAiError(null); }}
-              >
-                ×
-              </GhostButton>
-            )
-          ) : (
-            (pills.length > 0 || inputValue) && (
-              <GhostButton
-                data-size="icon-sm"
-                className={styles.clear}
-                type="button"
-                data-ef="clear"
-                onClick={clearAll}
-              >
-                ×
-              </GhostButton>
-            )
           )}
         </div>
         {aiError && <div className={styles.aiError}>{aiError}</div>}
-        {mode !== "ai" && (
-          <MatchDropdown
-            matches={matches}
-            onPick={pickMatch}
-            maxHeight={props.matchDropdownMaxHeight}
-            forceVisible={Boolean(props.suggestionsDropdownSticky)}
-          />
-        )}
+        <MatchDropdown
+          matches={matches}
+          onPick={pickMatch}
+          maxHeight={props.matchDropdownMaxHeight}
+          forceVisible={Boolean(props.suggestionsDropdownSticky)}
+        />
         <HintPanel
           onPickHint={handlePickHint}
           onPickOperator={insertOperator}
           onInsertField={insertFieldName}
           onInsertLogical={commitInput}
-          aiMode={mode === "ai"}
-          onAiAppendText={onAiAppendText}
+          aiMode={false}
+          onAiAppendText={() => undefined}
           maxHeight={props.hintPanelMaxHeight}
           hintColumns={props.hintColumns}
           hintVirtualized={props.hintVirtualized}
@@ -902,3 +906,4 @@ export function AiFilter(props: AiFilterProps): JSX.Element {
     </AiFilterProvider>
   );
 }
+

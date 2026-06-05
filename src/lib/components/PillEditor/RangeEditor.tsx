@@ -1,8 +1,8 @@
 import type { ChangeEvent, KeyboardEvent } from "react";
-import { NumberField } from "@base-ui/react/number-field";
 import { EfInput } from "../ui/EfInput";
 import { usePillEditorSelector } from "./PillEditorContext";
-import styles from "./PillEditor.module.css";
+import { NumericInput } from "./NumericInput";
+import styles from "./PillEditor.module.less";
 
 export function RangeEditor(): JSX.Element {
 	const field = usePillEditorSelector((s) => s.field);
@@ -34,42 +34,24 @@ export function RangeEditor(): JSX.Element {
 	if (isNumeric) {
 		return (
 			<>
-				<NumberField.Root
-					value={local === "" ? null : Number(local)}
-					onValueChange={(v) => setLocal(v == null ? "" : String(v))}
+				<NumericInput
+					value={local}
+					onChange={setLocal}
 					step={numStep}
-					format={{ useGrouping: false }}
-				>
-					<NumberField.Group className={styles.numGroup}>
-						<NumberField.Decrement className={styles.numBtn}>−</NumberField.Decrement>
-						<NumberField.Input
-							data-slot="input"
-							className={fromClass}
-							onKeyDown={handleFromKeyDown}
-							placeholder="from"
-							autoFocus
-						/>
-						<NumberField.Increment className={styles.numBtn}>+</NumberField.Increment>
-					</NumberField.Group>
-				</NumberField.Root>
+					className={fromClass}
+					onKeyDown={handleFromKeyDown}
+					placeholder="from"
+					autoFocus
+				/>
 				<span className={styles.rangeSep}>to</span>
-				<NumberField.Root
-					value={localTo === "" ? null : Number(localTo)}
-					onValueChange={(v) => setLocalTo(v == null ? "" : String(v))}
+				<NumericInput
+					value={localTo}
+					onChange={setLocalTo}
 					step={numStep}
-					format={{ useGrouping: false }}
-				>
-					<NumberField.Group className={styles.numGroup}>
-						<NumberField.Decrement className={styles.numBtn}>−</NumberField.Decrement>
-						<NumberField.Input
-							data-slot="input"
-							className={toClass}
-							onKeyDown={handleToKeyDown}
-							placeholder="to"
-						/>
-						<NumberField.Increment className={styles.numBtn}>+</NumberField.Increment>
-					</NumberField.Group>
-				</NumberField.Root>
+					className={toClass}
+					onKeyDown={handleToKeyDown}
+					placeholder="to"
+				/>
 			</>
 		);
 	}

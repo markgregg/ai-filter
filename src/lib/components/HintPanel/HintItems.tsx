@@ -1,32 +1,44 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
-import { GhostButton } from "../ui/GhostButton";
-import { ScrollArea } from "@base-ui/react/scroll-area";
 import type { Hint } from "../../types";
 import { useHintPanelSelector } from "./HintPanelContext";
-import styles from "./HintPanel.module.css";
+import { EfScrollArea } from "./EfScrollArea";
+import { cx, preventDefaultMouseDown } from "../ui/utils";
+import { GhostButton } from "../ui/GhostButton";
+import { formatFieldValueForDisplay } from "../../parser";
+import type { FieldDefinition } from "../../types";
+import styles from "./HintPanel.module.less";
 
-function HintItem({ hint, index }: { hint: Hint; index: number }): JSX.Element {
+function HintItem({ entry }: { entry: { field: FieldDefinition; hint: Hint } }): JSX.Element {
+  const isFavoritesSelected = useHintPanelSelector((s) => s.isFavoritesSelected);
   const currentField = useHintPanelSelector((s) => s.currentField);
   const selectedValues = useHintPanelSelector((s) => s.selectedValues);
   const onPickHint = useHintPanelSelector((s) => s.onPickHint);
 
-  let caption = hint.text;
+  const hint = entry.hint;
+  const fieldForHint = entry.field;
+
+  let caption: string;
   let isHintSelected: boolean;
 
   if (hint.kind === "list") {
-    caption = `${String(hint.operator)} (${hint.values.map((v) => String(v)).join(", ")})`;
-    isHintSelected = hint.values.some((v) => selectedValues.has(String(v)));
+    caption = `${String(hint.operator)} (${hint.values.map((v) => formatFieldValueForDisplay(fieldForHint, v)).join(", ")})`;
+    isHintSelected = hint.values.some((v) => selectedValues.has(formatFieldValueForDisplay(fieldForHint, v)));
   } else if (hint.kind === "range") {
-    caption = `${String(hint.from)} to ${String(hint.to)}`;
+    caption = `${formatFieldValueForDisplay(fieldForHint, hint.from)} to ${formatFieldValueForDisplay(fieldForHint, hint.to)}`;
     isHintSelected = selectedValues.has(caption);
   } else {
-    isHintSelected = selectedValues.has(String(hint.value));
+    const isDateField = fieldForHint.type === "date" || fieldForHint.type === "datetime";
+    caption = isDateField ? formatFieldValueForDisplay(fieldForHint, hint.value) : hint.text;
+    isHintSelected = selectedValues.has(caption);
   }
 
-  const capturedCaption = caption;
+  const displayCaption = isFavoritesSelected
+    ? `${fieldForHint.label ?? fieldForHint.name}: ${caption}`
+    : caption;
+
+  const capturedCaption = displayCaption;
   const capturedIsSelected = isHintSelected;
-  const renderedCaption = currentField.renderers?.hint?.({
+  const renderedCaption = fieldForHint.renderers?.hint?.({
     defaultText: capturedCaption,
     hint,
     value: hint.kind === "single" ? hint.value : undefined,
@@ -34,20 +46,14 @@ function HintItem({ hint, index }: { hint: Hint; index: number }): JSX.Element {
   });
 
   function handleClick(): void {
-    onPickHint(currentField, hint, capturedIsSelected);
+    onPickHint(fieldForHint, hint, capturedIsSelected);
   }
-
-  function handleMouseDown(e: MouseEvent): void {
-    e.preventDefault();
-  }
-
-  void index;
 
   return (
     <GhostButton
       type="button"
-      className={`${styles.hintRow}${capturedIsSelected ? ` ${styles.active}` : ""}`}
-      onMouseDown={handleMouseDown}
+      className={cx(styles.hintRow, capturedIsSelected && styles.active)}
+      onMouseDown={preventDefaultMouseDown}
       onClick={handleClick}
     >
       {renderedCaption ?? capturedCaption}
@@ -56,7 +62,7 @@ function HintItem({ hint, index }: { hint: Hint; index: number }): JSX.Element {
 }
 
 export function HintItems(): JSX.Element {
-  const hints = useHintPanelSelector((s) => s.hints);
+  const hintEntries = useHintPanelSelector((s) => s.hintEntries);
   const hintColumns = useHintPanelSelector((s) => s.hintColumns);
   const hintVirtualized = useHintPanelSelector((s) => s.hintVirtualized);
 
@@ -65,7 +71,7 @@ export function HintItems(): JSX.Element {
   const [viewportHeight, setViewportHeight] = useState(0);
 
   const itemHeight = 30;
-  const shouldVirtualize = hintVirtualized && hints.length > 0;
+  const shouldVirtualize = hintVirtualized && hintEntries.length > 0;
 
   useEffect(() => {
     if (!shouldVirtualize) return;
@@ -95,20 +101,20 @@ export function HintItems(): JSX.Element {
   }, [shouldVirtualize]);
 
   const {
-    renderedHints,
+    renderedEntries,
     virtualOffsetTop,
     virtualTotalHeight,
   } = useMemo(() => {
     if (!shouldVirtualize) {
       return {
-        renderedHints: hints,
+        renderedEntries: hintEntries,
         virtualOffsetTop: 0,
         virtualTotalHeight: 0,
       };
     }
 
     const columns = Math.max(1, hintColumns);
-    const totalRows = Math.ceil(hints.length / columns);
+    const totalRows = Math.ceil(hintEntries.length / columns);
     const visibleRows = Math.max(1, Math.ceil(viewportHeight / itemHeight));
     const overscanRows = 3;
 
@@ -116,14 +122,14 @@ export function HintItems(): JSX.Element {
     const endRow = Math.min(totalRows - 1, startRow + visibleRows + overscanRows * 2);
 
     const startIndex = startRow * columns;
-    const endIndex = Math.min(hints.length, (endRow + 1) * columns);
+    const endIndex = Math.min(hintEntries.length, (endRow + 1) * columns);
 
     return {
-      renderedHints: hints.slice(startIndex, endIndex),
+      renderedEntries: hintEntries.slice(startIndex, endIndex),
       virtualOffsetTop: startRow * itemHeight,
       virtualTotalHeight: totalRows * itemHeight,
     };
-  }, [shouldVirtualize, hints, hintColumns, viewportHeight, scrollTop]);
+  }, [shouldVirtualize, hintEntries, hintColumns, viewportHeight, scrollTop]);
 
   const viewportStyle =
     hintColumns > 1
@@ -135,36 +141,38 @@ export function HintItems(): JSX.Element {
       : undefined;
 
   return (
-    <ScrollArea.Root className={`${styles.values} ${styles.scrollRoot}`}>
-      <ScrollArea.Viewport ref={viewportRef} className={styles.scrollViewport}>
-        {!shouldVirtualize ? (
-          <div data-ef="hint-items-grid" style={viewportStyle}>
-            {hints.map((hint, index) => (
-              <HintItem key={`${hint.text}-${index}`} hint={hint} index={index} />
+    <EfScrollArea className={styles.values} viewportRef={viewportRef}>
+      {!shouldVirtualize ? (
+        <div data-ef="hint-items-grid" style={viewportStyle}>
+          {hintEntries.map((entry, index) => (
+            <HintItem
+              key={`${entry.field.name}-${entry.hint.text}-${index}`}
+              entry={entry}
+            />
+          ))}
+        </div>
+      ) : (
+        <div data-ef="hint-items-virtualized" style={{ position: "relative", height: `${virtualTotalHeight}px` }}>
+          <div
+            data-ef="hint-items-grid"
+            style={{
+              position: "absolute",
+              top: `${virtualOffsetTop}px`,
+              left: 0,
+              right: 0,
+              ...(viewportStyle ?? {}),
+            }}
+          >
+            {renderedEntries.map((entry, index) => (
+              <HintItem
+                key={`${entry.field.name}-${entry.hint.text}-${index}-${virtualOffsetTop}`}
+                entry={entry}
+              />
             ))}
           </div>
-        ) : (
-          <div data-ef="hint-items-virtualized" style={{ position: "relative", height: `${virtualTotalHeight}px` }}>
-            <div
-              data-ef="hint-items-grid"
-              style={{
-                position: "absolute",
-                top: `${virtualOffsetTop}px`,
-                left: 0,
-                right: 0,
-                ...(viewportStyle ?? {}),
-              }}
-            >
-              {renderedHints.map((hint, index) => (
-                <HintItem key={`${hint.text}-${index}-${virtualOffsetTop}`} hint={hint} index={index} />
-              ))}
-            </div>
-          </div>
-        )}
-      </ScrollArea.Viewport>
-      <ScrollArea.Scrollbar orientation="vertical" className={styles.scrollbar}>
-        <ScrollArea.Thumb className={styles.scrollThumb} />
-      </ScrollArea.Scrollbar>
-    </ScrollArea.Root>
+        </div>
+      )}
+    </EfScrollArea>
   );
 }
+

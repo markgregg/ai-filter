@@ -60,7 +60,7 @@ function renderFilter(
   const fields = props.fields ?? mkFields();
   const onChange = props.onChange ?? vi.fn();
   const utils = render(
-    <AiFilter fields={fields} onChange={onChange} {...props} ai={false} />
+    <AiFilter fields={fields} onChange={onChange} {...props} ai={props.ai ?? false} />
   );
   // The main text input — look for the search input
   const getInput = () => utils.container.querySelector<HTMLInputElement>('input[type="text"], input:not([type])') as HTMLInputElement;
@@ -259,6 +259,24 @@ describe("AiFilter — entering pills via keyboard", () => {
     });
   });
 
+  it("newly created pill is selected", async () => {
+    const user = userEvent.setup();
+    const { container, getInput } = renderFilter();
+
+    await user.click(getInput());
+    await user.type(getInput(), "title = hello");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-ef="pill"]').length).toBe(1);
+    });
+    await waitFor(() => {
+      const pill = container.querySelector('[data-ef="pill"]') as HTMLElement;
+      expect(pill).toBeTruthy();
+      expect(pill.className).toContain("selected");
+    });
+  });
+
   it("Clear button removes all pills", async () => {
     const user = userEvent.setup();
     const onClear = vi.fn();
@@ -283,6 +301,38 @@ describe("AiFilter — entering pills via keyboard", () => {
 });
 
 describe("AiFilter — async set lookup", () => {
+  it("does not call async setValues until lookupMinChars is met", async () => {
+    const setValues = vi.fn(async (lookupText: string) => [`${lookupText}-result`]);
+
+    const fields: FieldDefinition[] = [
+      {
+        name: "status",
+        type: "set",
+        precedence: 1,
+        setValues,
+        setValuesDebounceMs: 0,
+        lookupMinChars: 3,
+      },
+    ];
+
+    const { getInput } = renderFilter({ fields });
+    const input = getInput();
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "status ab" } });
+
+    await waitFor(() => {
+      expect(setValues).not.toHaveBeenCalled();
+    });
+
+    fireEvent.change(input, { target: { value: "status abc" } });
+
+    await waitFor(() => {
+      expect(setValues).toHaveBeenCalledTimes(1);
+      expect(setValues).toHaveBeenLastCalledWith("abc", expect.any(Object));
+    });
+  });
+
   it("aborts previous async setValues request when a newer lookup starts", async () => {
     vi.useFakeTimers();
 
@@ -503,6 +553,39 @@ describe("AiFilter — async set lookup", () => {
     await waitFor(() => {
       expect(container.textContent).not.toContain("a-only");
       expect(container.textContent).toContain("ab-only");
+    });
+  });
+
+  it("does not commit set value until lookupMinChars is met", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const fields: FieldDefinition[] = [
+      {
+        name: "status",
+        type: "set",
+        precedence: 1,
+        setValues: ["Done", "Doing", "New"],
+        lookupMinChars: 3,
+      },
+    ];
+
+    const { getInput } = renderFilter({ fields, onChange });
+
+    await user.click(getInput());
+    await user.type(getInput(), "status = do");
+    await user.keyboard("{Enter}");
+
+    expect(onChange).not.toHaveBeenCalled();
+
+    await user.clear(getInput());
+    await user.type(getInput(), "status = Done");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalled();
+      const pills = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      const valuePill = pills.find((p) => p.kind === "value") as any;
+      expect(valuePill?.value).toBe("Done");
     });
   });
 });
@@ -1155,6 +1238,40 @@ describe("AiFilter — all operator pills render correctly", () => {
 // ── Pill editing via double-click ─────────────────────────────────────────────
 
 describe("AiFilter — pill editing", () => {
+  it("double-clicking a date value pill shows a date picker", async () => {
+    const user = userEvent.setup();
+    const pills: FilterPill[] = [
+      { id: "p1", kind: "value", fieldName: "due", operator: "=", value: "2024-06-15T00:00:00.000Z" },
+    ];
+    const { container } = renderFilter({ pills });
+
+    const pillEl = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.dblClick(pillEl);
+
+    await waitFor(() => {
+      const editInput = container.querySelector('[data-ef="pill"] input') as HTMLInputElement;
+      expect(editInput).toBeTruthy();
+      expect(editInput.type).toBe("date");
+    });
+  });
+
+  it("double-clicking a datetime value pill shows a datetime picker", async () => {
+    const user = userEvent.setup();
+    const pills: FilterPill[] = [
+      { id: "p1", kind: "value", fieldName: "created", operator: "=", value: "2024-06-15T10:30:00.000Z" },
+    ];
+    const { container } = renderFilter({ pills });
+
+    const pillEl = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.dblClick(pillEl);
+
+    await waitFor(() => {
+      const editInput = container.querySelector('[data-ef="pill"] input') as HTMLInputElement;
+      expect(editInput).toBeTruthy();
+      expect(editInput.type).toBe("datetime-local");
+    });
+  });
+
   it("double-clicking a range pill enters edit mode", async () => {
     const user = userEvent.setup();
     const pills: FilterPill[] = [
@@ -1171,6 +1288,93 @@ describe("AiFilter — pill editing", () => {
     });
   });
 
+  it("double-clicking a datetime range pill shows separate from/to inputs", async () => {
+    const user = userEvent.setup();
+    const pills: FilterPill[] = [
+      {
+        id: "p1",
+        kind: "range",
+        fieldName: "created",
+        from: "2024-06-15T10:00:00.000Z",
+        to: "2024-06-16T11:30:00.000Z",
+      },
+    ];
+    const { container } = renderFilter({ pills });
+
+    const pillEl = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.dblClick(pillEl);
+
+    await waitFor(() => {
+      const editInputs = container.querySelectorAll('[data-ef="pill"] input');
+      expect(editInputs.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  it("double-clicking a date range pill shows two date pickers", async () => {
+    const user = userEvent.setup();
+    const pills: FilterPill[] = [
+      {
+        id: "p1",
+        kind: "range",
+        fieldName: "due",
+        from: "2024-06-15T00:00:00.000Z",
+        to: "2024-06-16T00:00:00.000Z",
+      },
+    ];
+    const { container } = renderFilter({ pills });
+
+    const pillEl = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.dblClick(pillEl);
+
+    await waitFor(() => {
+      const editInputs = Array.from(container.querySelectorAll('[data-ef="pill"] input')) as HTMLInputElement[];
+      expect(editInputs.length).toBeGreaterThanOrEqual(2);
+      expect(editInputs[0].type).toBe("date");
+      expect(editInputs[1].type).toBe("date");
+    });
+  });
+
+  it("double-clicking a datetime range pill shows two datetime pickers", async () => {
+    const user = userEvent.setup();
+    const pills: FilterPill[] = [
+      {
+        id: "p1",
+        kind: "range",
+        fieldName: "created",
+        from: "2024-06-15T10:00:00.000Z",
+        to: "2024-06-16T11:30:00.000Z",
+      },
+    ];
+    const { container } = renderFilter({ pills });
+
+    const pillEl = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.dblClick(pillEl);
+
+    await waitFor(() => {
+      const editInputs = Array.from(container.querySelectorAll('[data-ef="pill"] input')) as HTMLInputElement[];
+      expect(editInputs.length).toBeGreaterThanOrEqual(2);
+      expect(editInputs[0].type).toBe("datetime-local");
+      expect(editInputs[1].type).toBe("datetime-local");
+    });
+  });
+
+  it("set value editor starts with empty text so hint values are not pre-filtered", async () => {
+    const user = userEvent.setup();
+    const pills: FilterPill[] = [
+      { id: "p1", kind: "value", fieldName: "status", operator: "=", value: "Done" },
+    ];
+    const { container } = renderFilter({ pills });
+
+    const pillEl = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.dblClick(pillEl);
+
+    await waitFor(() => {
+      const editInput = container.querySelector('[data-ef="pill"] input') as HTMLInputElement;
+      expect(editInput).toBeTruthy();
+      expect(editInput.value).toBe("");
+    });
+  });
+
   it("double-clicking a list pill enters edit mode", async () => {
     const user = userEvent.setup();
     const pills: FilterPill[] = [
@@ -1184,6 +1388,11 @@ describe("AiFilter — pill editing", () => {
     await waitFor(() => {
       const editInput = container.querySelector('[data-ef="pill"] input');
       expect(editInput).toBeTruthy();
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector('button[aria-label="Remove New"]')).toBeNull();
+      expect(container.querySelector('button[aria-label="Remove Done"]')).toBeNull();
     });
   });
 
@@ -1428,6 +1637,65 @@ describe("AiFilter — hintsEnabled", () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThan(200);
   });
+
+  it("displays date-field hints without time using the configured date format", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      {
+        name: "due",
+        label: "Due",
+        type: "date",
+        precedence: 10,
+        dateFormat: "MM/dd/yyyy HH:mm:ss",
+        hints: [
+          {
+            kind: "single",
+            text: "2024-06-15T13:22:11.000Z",
+            operator: "=",
+            value: "2024-06-15T13:22:11.000Z",
+          },
+        ],
+      },
+    ];
+
+    const { container, getInput } = renderFilter({ fields });
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("06/15/2024");
+      expect(container.textContent).not.toContain("13:22:11");
+    });
+  });
+
+  it("displays datetime-field hints using only the configured format", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      {
+        name: "created",
+        label: "Created",
+        type: "datetime",
+        precedence: 10,
+        dateFormat: "MM/dd/yyyy",
+        hints: [
+          {
+            kind: "single",
+            text: "2024-06-15T13:22:11.000Z",
+            operator: "=",
+            value: "2024-06-15T13:22:11.000Z",
+          },
+        ],
+      },
+    ];
+
+    const { container, getInput } = renderFilter({ fields });
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("06/15/2024");
+      expect(container.textContent).not.toContain("13:22:11");
+      expect(container.textContent).not.toContain("T13:22");
+    });
+  });
 });
 
 // ── hintFieldSearch ──────────────────────────────────────────────────────────
@@ -1584,6 +1852,319 @@ describe("AiFilter — hintFieldSearch", () => {
       const fieldBtns = panel.querySelectorAll<HTMLButtonElement>('button[aria-label^="Insert"]');
       expect(fieldBtns.length).toBe(0);
     });
+  });
+});
+
+describe("AiFilter — hint interactions while pill selected/editing", () => {
+  it("clicking a different hint field clears selected pill and switches hint field", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      {
+        name: "title",
+        label: "Title",
+        type: "string",
+        precedence: 10,
+        hints: [{ kind: "single", text: "Title Hint", operator: "=", value: "hello" }],
+      },
+      {
+        name: "status",
+        label: "Status",
+        type: "set",
+        precedence: 20,
+        setValues: ["Open", "Done"],
+        hints: [{ kind: "single", text: "Status Hint", operator: "=", value: "Open" }],
+      },
+    ];
+
+    const pills: FilterPill[] = [
+      { id: "p1", kind: "value", fieldName: "title", operator: "=", value: "hello" },
+    ];
+
+    const { container, getInput } = renderFilter({ fields, pills });
+
+    await user.click(getInput());
+    const pill = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.click(pill);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Title Hint");
+      expect(container.textContent).not.toContain("Status Hint");
+    });
+
+    const statusFieldButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "Status",
+    ) as HTMLButtonElement;
+    expect(statusFieldButton).toBeTruthy();
+    await user.click(statusFieldButton);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Status Hint");
+      expect(container.textContent).not.toContain("Title Hint");
+    });
+
+    await user.click(getInput());
+    await user.keyboard("{Backspace}");
+
+    expect(container.querySelectorAll('[data-ef="pill"]').length).toBe(1);
+  });
+
+  it("clicking a hint field while a pill is selected keeps insertion at end", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const fields: FieldDefinition[] = [
+      { name: "title", label: "Title", type: "string", precedence: 10 },
+      { name: "count", label: "Count", type: "integer", precedence: 20 },
+      { name: "status", label: "Status", type: "set", precedence: 30, setValues: ["New", "Done"] },
+    ];
+    const pills: FilterPill[] = [
+      { id: "p1", kind: "value", fieldName: "title", operator: "=", value: "alpha" },
+      { id: "p2", kind: "value", fieldName: "count", operator: "=", value: 1 },
+    ];
+
+    const { container, getInput } = renderFilter({ fields, pills, onChange });
+    await user.click(getInput());
+
+    const firstPill = container.querySelectorAll('[data-ef="pill"]')[0] as HTMLElement;
+    await user.click(firstPill);
+
+    const statusFieldButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "Status",
+    ) as HTMLButtonElement;
+    expect(statusFieldButton).toBeTruthy();
+    await user.click(statusFieldButton);
+
+    await user.click(getInput());
+    await user.type(getInput(), "status = Done");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalled();
+      const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      expect(last.length).toBe(3);
+      const newest = last[last.length - 1] as FilterPill;
+      expect("fieldName" in newest ? newest.fieldName : "").toBe("status");
+    });
+  });
+
+  it("editing set/value pill filters field hints and does not show duplicate option dropdown", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      {
+        name: "status",
+        label: "Status",
+        type: "set",
+        precedence: 10,
+        setValues: ["New", "Done", "Blocked"],
+        hints: "fieldValues",
+      },
+    ];
+
+    const pills: FilterPill[] = [
+      { id: "p1", kind: "value", fieldName: "status", operator: "=", value: "New" },
+    ];
+
+    const { container, getInput } = renderFilter({ fields, pills });
+    await user.click(getInput());
+
+    const pill = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.dblClick(pill);
+
+    const editorInput = container.querySelector('[data-ef="pill"] input') as HTMLInputElement;
+    expect(editorInput).toBeTruthy();
+    await user.clear(editorInput);
+    await user.type(editorInput, "do");
+
+    await waitFor(() => {
+      const doneButtons = Array.from(container.querySelectorAll("button")).filter(
+        (btn) => btn.textContent?.trim() === "Done",
+      );
+      expect(doneButtons.length).toBe(1);
+      expect(container.textContent).not.toContain("New");
+      expect(container.textContent).not.toContain("Blocked");
+    });
+  });
+
+  it("editing set/list pill filters field hints and does not show duplicate option dropdown", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      {
+        name: "status",
+        label: "Status",
+        type: "set",
+        precedence: 10,
+        setValues: ["New", "Done", "Blocked"],
+        hints: "fieldValues",
+      },
+    ];
+
+    const pills: FilterPill[] = [
+      { id: "p1", kind: "list", fieldName: "status", operator: "in", values: ["New"] },
+    ];
+
+    const { container, getInput } = renderFilter({ fields, pills });
+    await user.click(getInput());
+
+    const pill = container.querySelector('[data-ef="pill"]') as HTMLElement;
+    await user.dblClick(pill);
+
+    const editorInput = container.querySelector('[data-ef="pill"] input') as HTMLInputElement;
+    expect(editorInput).toBeTruthy();
+    await user.type(editorInput, "do");
+
+    await waitFor(() => {
+      const doneButtons = Array.from(container.querySelectorAll("button")).filter(
+        (btn) => btn.textContent?.trim() === "Done",
+      );
+      expect(doneButtons.length).toBe(1);
+      expect(container.textContent).not.toContain("Blocked");
+    });
+  });
+});
+
+describe("AiFilter — NLP single-input behavior", () => {
+  it("shows AI icon instead of filter icon when NLP is enabled", () => {
+    const fields = mkFields();
+    const { container } = render(
+      <AiFilter
+        fields={fields}
+        ai={{ resolve: vi.fn(async () => "title = hello") }}
+        onChange={vi.fn()}
+      />,
+    );
+
+    const aiIcon = container.querySelector('[data-ef="left-ai-icon"]');
+    expect(aiIcon).toBeTruthy();
+  });
+
+  it("calls NLP on Enter when no match exists", async () => {
+    const user = userEvent.setup();
+    const resolve = vi.fn(async () => "title = hello");
+    const fields = mkFields();
+    const { getInput } = renderFilter({ fields, ai: { resolve }, onChange: vi.fn() });
+
+    await user.click(getInput());
+    await user.type(getInput(), "status = definitely-not-a-known-set-value");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(resolve).toHaveBeenCalledTimes(1);
+      expect(resolve).toHaveBeenCalledWith(expect.stringContaining("status = definitely-not-a-known-set-value"));
+    });
+  });
+
+  it("prefers selected match over NLP when match exists", async () => {
+    const user = userEvent.setup();
+    const resolve = vi.fn(async () => "title = hello");
+    const onChange = vi.fn();
+    const fields = mkFields();
+    const { getInput } = renderFilter({ fields, ai: { resolve }, onChange });
+
+    await user.click(getInput());
+    await user.type(getInput(), "status = Ne");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalled();
+    });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+});
+describe("AiFilter — paste lists and favorites", () => {
+  it("pasting comma-delimited values auto-creates a list pill for matching list fields", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { getInput } = renderFilter({ onChange });
+
+    await user.click(getInput());
+    fireEvent.paste(getInput(), {
+      clipboardData: {
+        getData: () => "New,Done",
+      },
+    } as unknown as ClipboardEvent);
+
+    await waitFor(() => {
+      const pills = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      const list = pills.find((p) => p.kind === "list") as any;
+      expect(list).toBeTruthy();
+      expect(list.fieldName).toBe("status");
+      expect(list.values).toEqual(["New", "Done"]);
+    });
+  });
+
+  it("uses pasteMatch for async list fields when matching pasted values", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const pasteMatch = vi.fn(async (value: string) => ["alpha", "beta"].includes(value.toLowerCase()));
+    const fields: FieldDefinition[] = [
+      { name: "title", type: "string", precedence: 1 },
+      { name: "tag", type: "set", precedence: 2, setValues: async () => [], pasteMatch },
+    ];
+    const { getInput } = renderFilter({ onChange, fields });
+
+    await user.click(getInput());
+    fireEvent.paste(getInput(), {
+      clipboardData: {
+        getData: () => "alpha\tbeta",
+      },
+    } as unknown as ClipboardEvent);
+
+    await waitFor(() => {
+      const pills = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      const list = pills.find((p) => p.kind === "list") as any;
+      expect(list).toBeTruthy();
+      expect(list.fieldName).toBe("tag");
+      expect(list.values).toEqual(["alpha", "beta"]);
+      expect(pasteMatch).toHaveBeenCalled();
+    });
+  });
+
+  it("shows a dedicated Favorites entry in hint field list when maxFavorites is enabled", async () => {
+    const id = "favorites-order-test";
+    localStorage.removeItem(`ai-filter:${id}:favorites`);
+    const user = userEvent.setup();
+
+    const first = renderFilter({ id, maxFavorites: 2, onChange: vi.fn() });
+    await user.click(first.getInput());
+    await user.type(first.getInput(), "status = Done");
+    await user.keyboard("{Enter}");
+    first.unmount();
+
+    const second = renderFilter({ id, maxFavorites: 2, onChange: vi.fn(), hintFieldSearch: true });
+    await user.click(second.getInput());
+
+    await waitFor(() => {
+      expect(second.getByText("Favorites")).toBeInTheDocument();
+    });
+
+    localStorage.removeItem(`ai-filter:${id}:favorites`);
+  });
+
+  it("clears selected pill when clicking Favorites field entry", async () => {
+    const id = "favorites-selection-test";
+    localStorage.removeItem(`ai-filter:${id}:favorites`);
+    const user = userEvent.setup();
+
+    const view = renderFilter({ id, maxFavorites: 3, onChange: vi.fn() });
+
+    await user.click(view.getInput());
+    await user.type(view.getInput(), "status = Done");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      const pill = view.container.querySelector('[data-ef="pill"]') as HTMLElement;
+      expect(pill).toBeTruthy();
+      expect(pill.className).toContain("selected");
+    });
+
+    await user.click(view.getByText("Favorites"));
+
+    await waitFor(() => {
+      const pill = view.container.querySelector('[data-ef="pill"]') as HTMLElement;
+      expect(pill).toBeTruthy();
+      expect(pill.className).not.toContain("selected");
+    });
+
+    localStorage.removeItem(`ai-filter:${id}:favorites`);
   });
 });
 

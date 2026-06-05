@@ -4,7 +4,7 @@ import { FilterInput } from "./FilterInput";
 import { usePillsAreaSelector } from "./PillsAreaContext";
 import { reorderPillsForDrop } from "./pillReorder";
 import { useInsertZoneDrop } from "./usePillDragDrop";
-import styles from "./PillsArea.module.css";
+import styles from "./PillsArea.module.less";
 
 export function InsertZone(props: {
   slot: number;
@@ -56,3 +56,4 @@ export function InsertZone(props: {
     </div>
   );
 }
+

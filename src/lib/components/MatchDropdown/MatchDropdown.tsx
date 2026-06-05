@@ -1,6 +1,6 @@
 import type { FieldMatch } from "../../types";
 import { MatchDropdownRow } from "./MatchDropdownRow";
-import styles from "./MatchDropdown.module.css";
+import styles from "./MatchDropdown.module.less";
 
 export function MatchDropdown(props: {
   matches: FieldMatch[];
@@ -30,3 +30,4 @@ export function MatchDropdown(props: {
     </div>
   );
 }
+

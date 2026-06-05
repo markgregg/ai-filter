@@ -99,6 +99,56 @@ describe("fieldsFromAgGrid", () => {
     await expect(teamField.setValues("a")).resolves.toEqual(["A"]);
     await expect(teamField.setValues("")).resolves.toEqual(["A", "B"]);
   });
+
+  it("supports columns that expose colDef directly and maps boolean/date/dateString types", () => {
+    const api: AgGridApi = {
+      getColumns: () => [
+        { colDef: { field: "enabled", cellDataType: "boolean" } },
+        { colDef: { field: "dueOn", cellDataType: "date" } },
+        { colDef: { field: "dueText", cellDataType: "dateString" } },
+      ],
+    };
+
+    const fields = fieldsFromAgGrid(api);
+    expect(fields).toMatchObject([
+      { name: "enabled", type: "boolean" },
+      { name: "dueOn", type: "date" },
+      { name: "dueText", type: "date" },
+    ]);
+  });
+
+  it("uses empty row-derived hints when forEachNode is unavailable", async () => {
+    const api: AgGridApi = {
+      getColumns: () => [{ getColDef: () => ({ field: "name", cellDataType: "text" }) }],
+    };
+
+    const [nameField] = fieldsFromAgGrid(api);
+    const hints = await (typeof nameField.hints === "function" ? nameField.hints() : []);
+    expect(hints).toEqual([]);
+  });
+
+  it("treats non-array set filter values as dynamic values from rows", async () => {
+    const api = makeApi({
+      columns: [{ field: "team", filter: "agSetColumnFilter", filterParams: { values: "A" as unknown } }],
+      rows: [{ team: "A" }, { team: "B" }],
+    });
+
+    const [teamField] = fieldsFromAgGrid(api);
+    if (teamField.type !== "set" || typeof teamField.setValues !== "function") {
+      throw new Error("Expected dynamic set field");
+    }
+    await expect(teamField.setValues("")).resolves.toEqual(["A", "B"]);
+  });
+
+  it("uses getAllGridColumns when getColumns is missing", () => {
+    const api: AgGridApi = {
+      getAllGridColumns: () => [{ getColDef: () => ({ field: "name", cellDataType: "text" }) }],
+    };
+
+    const fields = fieldsFromAgGrid(api);
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toMatchObject({ name: "name", type: "string" });
+  });
 });
 
 describe("mergeWithAgGridFields", () => {
@@ -119,5 +169,12 @@ describe("mergeWithAgGridFields", () => {
     expect(merged[0]).toMatchObject({ name: "status", label: "Ticket Status", precedence: 99 });
     expect(merged[1]).toMatchObject({ name: "age" });
     expect(merged[2]).toMatchObject({ name: "priority" });
+  });
+
+  it("returns agGrid fields when user fields are undefined or empty", () => {
+    const agFields: FieldDefinition[] = [{ name: "age", label: "Age", type: "float", precedence: 1 }];
+
+    expect(mergeWithAgGridFields(agFields, undefined)).toEqual(agFields);
+    expect(mergeWithAgGridFields(agFields, [])).toEqual(agFields);
   });
 });

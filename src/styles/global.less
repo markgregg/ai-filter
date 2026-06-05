@@ -1,14 +1,14 @@
 /* ── Design system foundation ─────────────────────────────────────────────── */
-@import './tokens.css';
-@import './design-system.css';
-@import './components.css';
+@import './tokens.less';
+@import './design-system.less';
+@import './components.less';
 
 /* ── EasyFilter component tokens (mapped to design system) ───────────────── */
 /*
    All --ef-* variables are aliases over the design-system semantic tokens so
    that every CSS Module in the library automatically inherits the design
    system color scheme, including automatic dark-mode via the
-   [data-color-scheme='dark'] blocks in design-system.css / components.css.
+   [data-color-scheme='dark'] blocks in design-system.less / components.less.
 */
 :root,
 [data-color-scheme='light'] {

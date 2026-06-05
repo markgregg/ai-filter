@@ -3,12 +3,32 @@ import type React from "react";
 import { useConfigSelector, useDataSelector, useUiSelector } from "../../context";
 import { dedupeHintsByIdentity, inferHintColumns, toSingleHints } from "../../hints";
 import { findLeadingOperator, operatorsForField } from "../../operators";
+import { formatFieldValueForDisplay } from "../../parser";
 import type { AnyOperator, FieldDefinition, Hint } from "../../types";
 import { HintFields } from "./HintFields";
 import { HintItems } from "./HintItems";
 import { HintOperators } from "./HintOperators";
 import { HintPanelContext } from "./HintPanelContext";
-import styles from "./HintPanel.module.css";
+import styles from "./HintPanel.module.less";
+
+const FAVORITES_FIELD_NAME = "__favorites__";
+
+function hintMatchesText(hint: Hint, needle: string): boolean {
+  if (hint.text.toLowerCase().includes(needle)) return true;
+
+  if (hint.kind === "single") {
+    return String(hint.value).toLowerCase().includes(needle);
+  }
+
+  if (hint.kind === "list") {
+    return hint.values.some((v) => String(v).toLowerCase().includes(needle));
+  }
+
+  return (
+    String(hint.from).toLowerCase().includes(needle) ||
+    String(hint.to).toLowerCase().includes(needle)
+  );
+}
 
 export function HintPanel(props: {
   onPickHint: (field: FieldDefinition, hint: Hint, isSelected: boolean) => void;
@@ -29,12 +49,16 @@ export function HintPanel(props: {
   forceVisible?: boolean;
 }): JSX.Element | null {
   const fields = useConfigSelector((s) => s.fields);
+  const maxFavorites = useConfigSelector((s) => s.maxFavorites);
   const hintsEnabled = useConfigSelector((s) => s.hintsEnabled);
   const inputValue = useUiSelector((s) => s.inputValue);
   const focused = useUiSelector((s) => s.focused);
   const selectedIds = useUiSelector((s) => s.selectedIds);
+  const editingId = useUiSelector((s) => s.editingId);
+  const hintValueFilterText = useUiSelector((s) => s.hintValueFilterText);
   const pills = useDataSelector((s) => s.pills);
   const recentByField = useDataSelector((s) => s.recentByField);
+  const favoriteCountsByField = useDataSelector((s) => s.favoriteCountsByField);
   const hintsByField = useDataSelector((s) => s.hintsByField);
   const loadHints = useDataSelector((s) => s.loadHints);
 
@@ -76,7 +100,8 @@ export function HintPanel(props: {
   const hasPillSelected = Boolean(selectedPillField);
   const fixedField = selectedPillField ?? inputField?.name;
   const effectiveFieldName = fixedField ?? selectedField ?? fields[0]?.name;
-  const currentField = fields.find((f) => f.name === effectiveFieldName);
+  const isFavoritesSelected = effectiveFieldName === FAVORITES_FIELD_NAME;
+  const currentField = fields.find((f) => f.name === effectiveFieldName) ?? fields[0];
 
   const operators = useMemo(
     () => (currentField ? operatorsForField(currentField) : []),
@@ -105,11 +130,13 @@ export function HintPanel(props: {
       .forEach((pill) => {
         if (!("fieldName" in pill) || pill.fieldName !== currentField.name) return;
         if (pill.kind === "value") {
-          values.add(String(pill.value));
+          values.add(formatFieldValueForDisplay(currentField, pill.value));
         } else if (pill.kind === "list") {
-          pill.values.forEach((v) => values.add(String(v)));
+          pill.values.forEach((v) => values.add(formatFieldValueForDisplay(currentField, v)));
         } else if (pill.kind === "range") {
-          values.add(`${String(pill.from)} to ${String(pill.to)}`);
+          values.add(
+            `${formatFieldValueForDisplay(currentField, pill.from)} to ${formatFieldValueForDisplay(currentField, pill.to)}`,
+          );
         }
       });
     return values;
@@ -119,6 +146,40 @@ export function HintPanel(props: {
     () => toSingleHints(recentByField[currentField?.name ?? ""] ?? []),
     [recentByField, currentField?.name],
   );
+
+  const favoritesHintEntries = useMemo(() => {
+    if (maxFavorites === undefined) return [] as Array<{ field: FieldDefinition; hint: Hint; count: number }>;
+
+    const entries: Array<{ field: FieldDefinition; hint: Hint; count: number }> = [];
+    for (const [fieldName, valueCounts] of Object.entries(favoriteCountsByField)) {
+      const field = fields.find((f) => f.name === fieldName);
+      if (!field) continue;
+      for (const [encoded, count] of Object.entries(valueCounts)) {
+        let value: unknown = encoded;
+        try {
+          value = JSON.parse(encoded);
+        } catch {
+          value = encoded;
+        }
+        entries.push({
+          field,
+          hint: {
+            kind: "single",
+            text: formatFieldValueForDisplay(field, value),
+            operator: "=",
+            value,
+          },
+          count,
+        });
+      }
+    }
+
+    return entries
+      .sort((a, b) => b.count - a.count)
+      .slice(0, Math.max(0, maxFavorites));
+  }, [favoriteCountsByField, fields, maxFavorites]);
+
+  const showFavoritesField = maxFavorites !== undefined;
 
   const hints = useMemo(
     () => {
@@ -132,8 +193,33 @@ export function HintPanel(props: {
     [recent, hintsByField, fieldHints, currentField?.name],
   );
 
-  const effectiveHintColumns = props.hintColumns ?? inferHintColumns(hints.length);
-  const useHintVirtualization = Boolean(props.hintVirtualized) && hints.length >= 80;
+  const filteredHints = useMemo(() => {
+    if (isFavoritesSelected) {
+      return favoritesHintEntries.map((entry) => entry.hint);
+    }
+
+    const needle = hintValueFilterText.trim().toLowerCase();
+    if (!needle) return hints;
+    if (!editingId || !currentField) return hints;
+
+    const editingPill = pills.find((p) => p.id === editingId);
+    if (!editingPill || !("fieldName" in editingPill)) return hints;
+    if (editingPill.fieldName !== currentField.name) return hints;
+    if (editingPill.kind !== "value" && editingPill.kind !== "list") return hints;
+
+    return hints.filter((hint) => hintMatchesText(hint, needle));
+  }, [isFavoritesSelected, favoritesHintEntries, hintValueFilterText, hints, editingId, currentField, pills]);
+
+  const hintEntries = useMemo(() => {
+    if (isFavoritesSelected) {
+      return favoritesHintEntries.map((entry) => ({ field: entry.field, hint: entry.hint }));
+    }
+    if (!currentField) return [] as Array<{ field: FieldDefinition; hint: Hint }>;
+    return filteredHints.map((hint) => ({ field: currentField, hint }));
+  }, [isFavoritesSelected, favoritesHintEntries, currentField, filteredHints]);
+
+  const effectiveHintColumns = props.hintColumns ?? inferHintColumns(filteredHints.length);
+  const useHintVirtualization = Boolean(props.hintVirtualized) && filteredHints.length >= 80;
 
   const toggleSelectedField = useCallback(
     (name: string) => setSelectedField((prev) => (prev === name ? undefined : name)),
@@ -141,6 +227,7 @@ export function HintPanel(props: {
   );
 
   const selectField = useCallback((name: string) => setSelectedField(name), []);
+  const selectFavorites = useCallback(() => setSelectedField(FAVORITES_FIELD_NAME), []);
 
   useEffect(() => {
     if (!hintsEnabled || !visible) return;
@@ -162,7 +249,8 @@ export function HintPanel(props: {
   const ctxValue = {
     currentField,
     operators,
-    hints,
+    hints: filteredHints,
+    hintEntries,
     activeOperator,
     selectedValues,
     hasPillSelected,
@@ -175,8 +263,12 @@ export function HintPanel(props: {
     hintVirtualized: useHintVirtualization,
     // Keep fields list single-column to avoid crowding the hints pane on large datasets.
     fieldColumns: 1,
+    favoritesFieldName: FAVORITES_FIELD_NAME,
+    showFavoritesField,
+    isFavoritesSelected,
     toggleSelectedField,
     selectField,
+    selectFavorites,
     onPickHint: props.onPickHint,
     onPickOperator: props.onPickOperator,
     onInsertField: props.onInsertField,
@@ -190,7 +282,7 @@ export function HintPanel(props: {
   return (
     <HintPanelContext.Provider value={ctxValue}>
       <div className={styles.dropdown} role="listbox" aria-label="Hints">
-        {!props.aiMode && <HintOperators />}
+        {!props.aiMode && !isFavoritesSelected && <HintOperators />}
         <div className={styles.body} style={bodyStyle}>
           <HintFields />
           <HintItems />
@@ -199,4 +291,5 @@ export function HintPanel(props: {
     </HintPanelContext.Provider>
   );
 }
+
 

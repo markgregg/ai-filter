@@ -159,6 +159,15 @@ describe("matchesFromInput — set field with setValues", () => {
     const result = matches("status zzz", { setValuesByField: setValues });
     expect(result).toEqual([]);
   });
+
+  it("respects lookupMinChars for prefixed set fields", () => {
+    const fields: FieldDefinition[] = [
+      { name: "status", type: "set", precedence: 1, lookupMinChars: 3 },
+    ];
+
+    expect(matches("status ne", { fields, setValuesByField: { status: ["New", "Done"] } })).toEqual([]);
+    expect(matches("status new", { fields, setValuesByField: { status: ["New", "Done"] } })[0]?.type).toBe("set-value");
+  });
 });
 
 // ── Hints matching ───────────────────────────────────────────────────────────
@@ -175,6 +184,17 @@ describe("matchesFromInput — hint matching", () => {
       { name: "due", type: "date", precedence: 6 },
     ]});
     expect(result.some((r) => r.type === "hint" && r.text === "Last week")).toBe(true);
+  });
+
+  it("returns non-prefixed hint matches for non-set fields", () => {
+    const result = matches("week", {
+      hintsByField: { due: hints },
+      fields: [
+        ...FIELDS,
+        { name: "due", type: "date", precedence: 6 },
+      ],
+    });
+    expect(result.some((r) => r.type === "hint" && r.field.name === "due")).toBe(true);
   });
 
   it("hint result includes hint payload", () => {
@@ -195,6 +215,29 @@ describe("matchesFromInput — hint matching", () => {
       hintsByField: { status: setHints },
     });
     expect(result.every((r) => r.type === "hint")).toBe(true);
+  });
+
+  it("matches set-field hints without a field prefix", () => {
+    const result = matches("open", {
+      fields: [
+        ...FIELDS,
+        { name: "state", type: "set", precedence: 6 },
+      ],
+      hintsByField: {
+        state: [{ kind: "single", text: "Open", operator: "=", value: "Open" }],
+      },
+    });
+    expect(result.some((r) => r.type === "hint" && r.field.name === "state")).toBe(true);
+  });
+
+  it("falls back to value-candidate when hints exist but none match", () => {
+    const result = matches("title bug", {
+      hintsByField: {
+        title: [{ kind: "single", text: "Last week", operator: "=", value: "last week" }],
+      },
+    });
+    expect(result[0]?.type).toBe("value-candidate");
+    expect(result[0]?.text).toBe("bug");
   });
 });
 
@@ -222,6 +265,34 @@ describe("matchesFromInput — no field prefix, field name suggestions", () => {
   it("suggests set-values without field prefix when needle matches set value", () => {
     const result = matches("new", { setValuesByField: { status: ["New", "Done"] } });
     expect(result.some((r) => r.type === "set-value" && r.text === "New")).toBe(true);
+  });
+
+  it("orders set fields ahead of non-set fields when precedence ties", () => {
+    const fields: FieldDefinition[] = [
+      { name: "plain", label: "Alpha", type: "string", precedence: 1 },
+      { name: "state", label: "Alpha", type: "set", precedence: 1, setValues: ["Alpha"] },
+    ];
+    const result = matches("alpha", { fields, setValuesByField: { state: ["Alpha"] } });
+    expect(result[0]?.field.name).toBe("state");
+  });
+
+  it("prioritizes favorite fields when favorite counts are provided", () => {
+    const fields: FieldDefinition[] = [
+      { name: "alpha", type: "string", precedence: 10 },
+      { name: "beta", type: "string", precedence: 1 },
+    ];
+
+    const result = matchesFromInput({
+      input: "a",
+      fields,
+      setValuesByField: {},
+      hintsByField: {},
+      pillCountByField: {},
+      favoriteFieldCounts: { alpha: 5, beta: 0 },
+    });
+
+    const fieldMatches = result.filter((r) => r.type === "field");
+    expect(fieldMatches[0]?.field.name).toBe("alpha");
   });
 });
 
@@ -320,5 +391,56 @@ describe("matchesFromInput — behavioral ranking", () => {
     expect(ranked[0]?.field.name).toBe("title");
     expect(ranked[0]?.type).toBe("value-candidate");
   });
+
+  it("scores startsWith over contains for non-field matches", () => {
+    const fields: FieldDefinition[] = [
+      { name: "status", type: "set", precedence: 1, setValues: ["Done", "Undone"] },
+    ];
+
+    const ranked = matches("do", {
+      fields,
+      setValuesByField: { status: ["Done", "Undone"] },
+      matchRanking: { enabled: true, precedenceWeight: 0, usageWeight: 0, recencyWeight: 0, exactnessWeight: 50 },
+    });
+
+    expect(ranked[0]?.text).toBe("Done");
+  });
+
+  it("handles operator-prefixed searches where exactness falls back to minimal score", () => {
+    const ranked = matches("= 42", {
+      matchRanking: { enabled: true, precedenceWeight: 0, usageWeight: 0, recencyWeight: 0, exactnessWeight: 50 },
+    });
+
+    expect(ranked.some((r) => r.type === "value-candidate" && r.text === "42")).toBe(true);
+  });
+
+  it("uses text tie-break when ranking scores are equal", () => {
+    const fields: FieldDefinition[] = [
+      { name: "ab", label: "ab", type: "string", precedence: 1 },
+      { name: "aa", label: "aa", type: "string", precedence: 1 },
+    ];
+
+    const ranked = matches("a", {
+      fields,
+      matchRanking: { enabled: true, precedenceWeight: 0, usageWeight: 0, recencyWeight: 0, exactnessWeight: 0 },
+    });
+
+    const fieldMatches = ranked.filter((r) => r.type === "field").map((r) => r.text);
+    expect(fieldMatches.slice(0, 2)).toEqual(["aa", "ab"]);
+  });
+
+  it("can score field-name includes matches when input is mid-word", () => {
+    const fields: FieldDefinition[] = [
+      { name: "title", type: "string", precedence: 1 },
+    ];
+
+    const ranked = matches("itl", {
+      fields,
+      matchRanking: { enabled: true, precedenceWeight: 0, usageWeight: 0, recencyWeight: 0, exactnessWeight: 50 },
+    });
+
+    expect(ranked.some((r) => r.type === "field" && r.field.name === "title")).toBe(true);
+  });
+
 });
 

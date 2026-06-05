@@ -5,7 +5,7 @@ import { AiFilter, resolveNlpQuery } from "../lib";
 import type { AgGridApi, FieldDefinition, FilterPill, Hint, ValueResolver } from "../lib";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry, type ColDef, type GridReadyEvent } from "ag-grid-community";
-import "../styles/global.css";
+import "../styles/global.less";
 
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
@@ -63,6 +63,10 @@ const STORY_EXPLANATIONS: Record<string, string> = {
     "What it does: strips currency symbols and expands k/M suffixes on all numeric fields via a global ValueResolver. How it works: a single resolver with no fieldName is invoked for every field; it returns undefined immediately for non-numeric fields so they are unaffected, and returns the normalised number for numeric ones.",
   "nlp-resolver-chain":
     "What it does: combines two ValueResolvers in a chain — date shorthand and numeric normalisation — and applies them together in a local NLP ai.resolve pipeline. How it works: resolvers are tried in array order; the first to return a non-undefined value wins. The local resolver converts pills to expression lines that the AI-mode pipeline then parses into pills.",
+  "paste-list":
+    "What it does: accepts comma/tab/newline-delimited pasted values and matches them as a list for a field. How it works: the field exposes an async pasteMatch validator and AiFilter resolves pasted tokens into a list pill in one action.",
+  favorites:
+    "What it does: exposes a dedicated Favorites entry in the hint field list. How it works: maxFavorites turns on localStorage-backed counting and the Favorites entry shows the most selected items up to the configured max.",
 };
 
 function StoryExplanation({ text }: { text: string }): JSX.Element {
@@ -2415,4 +2419,192 @@ NlpResolverChain.parameters = {
     },
   },
 };
+
+// ---------------------------------------------------------------------------
+// Story: Paste list matching — delimited paste + async pasteMatch
+// ---------------------------------------------------------------------------
+
+const PASTE_LIST_VALUES = [
+  "ALPHA-100",
+  "ALPHA-101",
+  "ALPHA-102",
+  "BETA-200",
+  "BETA-201",
+  "GAMMA-300",
+  "GAMMA-301",
+];
+
+export const PasteListMatching: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+
+  const fields = useMemo<FieldDefinition[]>(
+    () => [
+      {
+        name: "ticketId",
+        label: "Ticket ID",
+        type: "set",
+        precedence: 100,
+        setValues: PASTE_LIST_VALUES,
+        hints: "fieldValues",
+        pasteMatch: async (value: string) => {
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          return PASTE_LIST_VALUES.includes(value.toUpperCase());
+        },
+      },
+      {
+        name: "state",
+        label: "State",
+        type: "set",
+        precedence: 80,
+        setValues: ["New", "In Progress", "Blocked", "Done"],
+        hints: "fieldValues",
+      },
+    ],
+    [],
+  );
+
+  return (
+    <div style={{ maxWidth: 760, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS["paste-list"]} />
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Paste into the input using commas, tabs, or new lines, for example:
+        <code> ALPHA-100,ALPHA-101, BETA-200</code>
+      </p>
+      <AiFilter
+        id="paste-list"
+        fields={fields}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => setPills([])}
+        placeholder="Paste a list of ticket IDs"
+      />
+      <pre
+        style={{
+          marginTop: "1rem",
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+PasteListMatching.storyName = "Paste list matching";
+PasteListMatching.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates list paste ingestion with comma/tab/newline delimiters and async pasteMatch validation. Matching pasted values are committed as a list filter pill in a single interaction.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: Favorites — maxFavorites + local usage ordering
+// ---------------------------------------------------------------------------
+
+export const Favorites: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+  const storyId = "favorites-fields-demo";
+
+  const resetFavorites = useCallback((): void => {
+    localStorage.removeItem(`ai-filter:${storyId}:favorites`);
+    setPills([]);
+  }, []);
+
+  return (
+    <div style={{ maxWidth: 760, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS.favorites} />
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        This story demonstrates <strong>field-level</strong> favorites in the left hint field list.
+        Start by selecting values for <em>Region</em> or <em>Owner</em>; those fields should move above others.
+      </p>
+      <div style={{ marginBottom: "0.75rem" }}>
+        <button
+          type="button"
+          onClick={resetFavorites}
+          style={{
+            padding: "0.35rem 0.7rem",
+            fontSize: "0.75rem",
+            border: "1px solid #cbd5e1",
+            borderRadius: 4,
+            background: "#ffffff",
+            cursor: "pointer",
+          }}
+        >
+          Reset favorites for this story
+        </button>
+      </div>
+      <AiFilter
+        id={storyId}
+        fields={[
+          {
+            name: "title",
+            label: "Title",
+            type: "string",
+            precedence: 100,
+          },
+          {
+            name: "status",
+            label: "Status",
+            type: "set",
+            precedence: 90,
+            setValues: ["New", "In Progress", "Blocked", "Done", "Archived"],
+            hints: "fieldValues",
+          },
+          {
+            name: "region",
+            label: "Region",
+            type: "set",
+            precedence: 80,
+            setValues: ["NA", "EMEA", "APAC", "LATAM"],
+            hints: "fieldValues",
+          },
+          {
+            name: "owner",
+            label: "Owner",
+            type: "set",
+            precedence: 70,
+            setValues: ["Alice", "Bob", "Carol", "Dan"],
+            hints: "fieldValues",
+          },
+        ]}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => setPills([])}
+        maxFavorites={3}
+        hintFieldSearch={true}
+        placeholder="Try: region = EMEA, owner = Alice, status = Done"
+      />
+      <pre
+        style={{
+          marginTop: "1rem",
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+Favorites.storyName = "Favorites (maxFavorites)";
+Favorites.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates favorites behavior enabled via maxFavorites. Value selections are counted in localStorage and the highest-frequency values are prioritised in future suggestions and hints.",
+    },
+  },
+};
+
 

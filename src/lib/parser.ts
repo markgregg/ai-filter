@@ -34,10 +34,30 @@ export function applyDateFormat(d: Date, format: string): string {
  */
 export function formatDateValue(value: unknown, fieldType: "date" | "datetime", dateFormat?: string): string {
   const defaultFormat = fieldType === "datetime" ? "yyyy-MM-dd HH:mm:ss" : "yyyy-MM-dd";
-  const fmt = dateFormat ?? defaultFormat;
+  let fmt = dateFormat ?? defaultFormat;
+  if (fieldType === "date") {
+    // Date-only fields should never render a time component, even if HH/mm/ss
+    // tokens are present in a custom format.
+    fmt = fmt
+      .replace(/([ T]*)HH([:./-]*)mm([:./-]*)ss/g, "")
+      .replace(/([ T]*)HH([:./-]*)mm/g, "")
+      .replace(/([ T]*)HH/g, "")
+      .replace(/\s+/g, " ")
+      .replace(/[\s:./-]+$/g, "")
+      .trim();
+    if (!fmt) fmt = "yyyy-MM-dd";
+  }
   const d = value instanceof Date ? value : new Date(String(value));
   if (Number.isNaN(d.getTime())) return String(value);
   return applyDateFormat(d, fmt);
+}
+
+export function formatFieldValueForDisplay(field: FieldDefinition | undefined, value: unknown): string {
+  if (!field) return String(value);
+  if (field.type === "date" || field.type === "datetime") {
+    return formatDateValue(value, field.type, field.dateFormat);
+  }
+  return String(value);
 }
 
 export function parseLogicalToken(text: string): LogicalToken | undefined {
@@ -168,7 +188,7 @@ export function parseInputToPill(args: {
   const { op, rest } = findLeadingOperator(afterField);
   const range = parseRange(rest || afterField);
 
-  if (range && ["integer", "float", "date", "custom"].includes(chosenField.type)) {
+  if (range && ["integer", "float", "date", "datetime", "custom"].includes(chosenField.type)) {
     if (!range.from.trim() || !range.to.trim()) {
       return undefined;
     }
@@ -266,17 +286,17 @@ export function pillLabel(pill: FilterPill, fields: FieldDefinition[]): string {
   const fieldName = field?.label ?? pill.fieldName;
 
   if (pill.kind === "range") {
-    return `${fieldName}: ${String(pill.from)} to ${String(pill.to)}`;
+    return `${fieldName}: ${formatFieldValueForDisplay(field, pill.from)} to ${formatFieldValueForDisplay(field, pill.to)}`;
   }
 
   if (pill.kind === "list") {
-    return `${fieldName} in (${pill.values.map((v) => String(v)).join(", ")})`;
+    return `${fieldName} in (${pill.values.map((v) => formatFieldValueForDisplay(field, v)).join(", ")})`;
   }
 
   const op = pill.operator;
   const isDefaultOp = op === defaultOperatorForType(field?.type ?? "string");
   if (isDefaultOp) {
-    return `${fieldName}: ${String(pill.value)}`;
+    return `${fieldName}: ${formatFieldValueForDisplay(field, pill.value)}`;
   }
-  return `${fieldName} ${op} ${String(pill.value)}`;
+  return `${fieldName} ${op} ${formatFieldValueForDisplay(field, pill.value)}`;
 }
