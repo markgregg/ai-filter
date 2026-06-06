@@ -15,7 +15,7 @@ import {
   useDataSelector,
   useUiSelector,
 } from "../../context";
-import { findLeadingOperator, operatorsForField } from "../../operators";
+import { findLeadingOperator } from "../../operators";
 import { makeId, normalizePills, parseInputToPill } from "../../parser";
 import { fieldsFromAgGrid, mergeWithAgGridFields } from "../../agGridAdapter";
 import { syncAgGridExternalFilter } from "../../agGridExternalFilter";
@@ -27,6 +27,7 @@ import type {
   FilterPill,
   Hint,
   ListPill,
+  MaterializedHint,
   RangePill,
   ValuePill,
 } from "../../types";
@@ -42,6 +43,7 @@ import styles from "./AiFilter.module.less";
 
 function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme" | "matchDropdownMaxHeight" | "suggestionsDropdownSticky" | "hintPanelMaxHeight" | "hintColumns" | "matchRanking" | "hintVirtualized">): JSX.Element {
   const fields = useConfigSelector((s) => s.fields);
+  const mode = useConfigSelector((s) => s.mode);
   const onClear = useConfigSelector((s) => s.onClear);
 
   const pills = useDataSelector((s) => s.pills);
@@ -142,6 +144,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
       matchesFromInput({
         input: inputValue,
         fields,
+        mode,
         setValuesByField,
         hintsByField,
         favoriteFieldCounts,
@@ -152,7 +155,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
           return acc;
         }, {}),
       }),
-    [inputValue, fields, setValuesByField, hintsByField, favoriteFieldCounts, recentByField, props.matchRanking, pills],
+    [inputValue, fields, mode, setValuesByField, hintsByField, favoriteFieldCounts, recentByField, props.matchRanking, pills],
   );
 
   const keepSuggestionsVisible =
@@ -174,6 +177,13 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
   function commitInput(rawText?: string): void {
     const text = (rawText ?? inputValue).trim();
     if (!text) return;
+
+    if (mode === "simple") {
+      const upper = text.toUpperCase();
+      if (upper === "AND" || upper === "OR" || text === "(" || text === ")") {
+        return;
+      }
+    }
 
     if (rawText === undefined) {
       const hasFieldPrefix = fields.some((f) =>
@@ -210,11 +220,25 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
 
     if (!willReplace && "fieldName" in parsed) {
       const field = fields.find((f) => f.name === parsed.fieldName);
-      if (field?.maxInstances !== undefined) {
+      const maxInstances = mode === "simple" ? 1 : field?.maxInstances;
+      if (maxInstances !== undefined) {
         const currentCount = pills.filter(
           (p) => "fieldName" in p && p.fieldName === parsed.fieldName,
         ).length;
-        if (currentCount >= field.maxInstances) return;
+        if (currentCount >= maxInstances) {
+          if (mode === "simple") {
+            const existingIndex = pills.findIndex(
+              (p) => "fieldName" in p && p.fieldName === parsed.fieldName,
+            );
+            if (existingIndex >= 0) {
+              setSelectedIds([pills[existingIndex].id]);
+              setInsertIndex(existingIndex);
+              setActiveField(parsed.fieldName);
+              focusRoot();
+            }
+          }
+          return;
+        }
       }
     }
 
@@ -416,7 +440,8 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
   }
 
   async function fieldMatchesPastedValues(field: FieldDefinition, values: string[]): Promise<boolean> {
-    if (!operatorsForField(field).includes("in")) return false;
+    const supportsList = field.type === "set" || field.type === "tree";
+    if (!supportsList) return false;
 
     if (field.pasteMatch) {
       const checks = await Promise.all(values.map((v) => Promise.resolve(field.pasteMatch?.(v))));
@@ -434,7 +459,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
   }
 
   async function tryHandleDelimitedPaste(values: string[]): Promise<boolean> {
-    const listFields = fields.filter((field) => operatorsForField(field).includes("in"));
+    const listFields = fields.filter((field) => field.type === "set" || field.type === "tree");
     const matchesField: FieldDefinition[] = [];
 
     for (const field of listFields) {
@@ -446,7 +471,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
     if (!matchesField.length) return false;
     const selectedField = promptPasteField(matchesField);
     if (!selectedField) return true;
-    commitInput(`${selectedField.name} in ${values.join(",")}`);
+    commitInput(`${selectedField.name} = ${values.join(",")}`);
     return true;
   }
 
@@ -490,6 +515,11 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
       return;
     }
 
+    if (match.hint?.kind === "computed") {
+      void commitMaterializedHint(match.field, match.hint);
+      return;
+    }
+
     if (match.hint?.kind === "single") {
       commitInput(
         `${match.field.name} ${String(match.hint.operator)} ${String(match.hint.value)}`,
@@ -498,7 +528,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
     }
 
     if (match.hint?.kind === "list") {
-      commitInput(`${match.field.name} in ${match.hint.values.map((v) => String(v)).join(",")}`);
+      commitInput(`${match.field.name} = ${match.hint.values.map((v) => String(v)).join(",")}`);
       return;
     }
 
@@ -510,7 +540,114 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
     commitInput(match.text);
   }
 
+  async function materializeHint(hint: Hint): Promise<MaterializedHint | undefined> {
+    if (hint.kind !== "computed") return hint;
+    const computed = await hint.compute();
+    if (
+      computed.kind !== "single" &&
+      computed.kind !== "list" &&
+      computed.kind !== "range"
+    ) {
+      return undefined;
+    }
+    return computed;
+  }
+
+  function commitMaterializedHint(field: FieldDefinition, hint: Hint): void {
+    void (async () => {
+      const resolved = await materializeHint(hint);
+      if (!resolved) return;
+      if (resolved.kind === "single") {
+        commitInput(`${field.name} ${String(resolved.operator)} ${String(resolved.value)}`);
+        return;
+      }
+      if (resolved.kind === "list") {
+        commitInput(`${field.name} = ${resolved.values.map((v) => String(v)).join(",")}`);
+        return;
+      }
+      commitInput(`${field.name} ${String(resolved.from)} to ${String(resolved.to)}`);
+    })();
+  }
+
   function pickHint(field: FieldDefinition, hint: Hint, isSelected: boolean): void {
+    if (hint.kind === "computed") {
+      void (async () => {
+        const resolved = await materializeHint(hint);
+        if (!resolved) return;
+        pickHint(field, resolved, isSelected);
+      })();
+      return;
+    }
+
+    if (field.type === "tree") {
+      const targetValues = hint.kind === "single"
+        ? [hint.value]
+        : hint.kind === "list"
+          ? hint.values
+          : [];
+
+      if (!targetValues.length) return;
+
+      const currentValues = pills
+        .filter((pill) => "fieldName" in pill && pill.fieldName === field.name)
+        .flatMap((pill) => {
+          if (pill.kind === "value") return [pill.value];
+          if (pill.kind === "list") return pill.values;
+          return [] as unknown[];
+        });
+
+      const currentSet = new Set(currentValues.map((value) => String(value)));
+      const targetSet = new Set(targetValues.map((value) => String(value)));
+      const allSelected = [...targetSet].every((value) => currentSet.has(value));
+
+      const nextSet = new Set(currentSet);
+      if (allSelected) {
+        targetSet.forEach((value) => nextSet.delete(value));
+      } else {
+        targetValues.forEach((value) => nextSet.add(String(value)));
+      }
+
+      const nextValues = [...nextSet.values()];
+      const replacementId = makeId();
+      setPills((prev) => {
+        const existingIndex = prev.findIndex(
+          (pill) => "fieldName" in pill && pill.fieldName === field.name,
+        );
+        const withoutField = prev.filter(
+          (pill) => !("fieldName" in pill && pill.fieldName === field.name),
+        );
+
+        if (nextValues.length === 0) {
+          return normalizePills(withoutField);
+        }
+
+        const replacement: FilterPill = nextValues.length === 1
+          ? {
+              id: replacementId,
+              kind: "value",
+              fieldName: field.name,
+              operator: "=",
+              value: nextValues[0],
+            }
+          : {
+              id: replacementId,
+              kind: "list",
+              fieldName: field.name,
+              operator: "=",
+              values: nextValues,
+            };
+
+        const insertAt = existingIndex >= 0 ? existingIndex : insertIndex;
+        const next = [...withoutField];
+        next.splice(Math.min(insertAt, next.length), 0, replacement);
+        return normalizePills(next);
+      });
+
+      setEditingId(undefined);
+      setSelectedIds(nextValues.length === 0 ? [] : [replacementId]);
+      return;
+    }
+
     const activeIds = [...new Set([...(editingId ? [editingId] : []), ...selectedIds])];
     const activePills = pills.filter((p) => activeIds.includes(p.id));
 
@@ -637,7 +774,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
       return;
     }
     if (hint.kind === "list") {
-      commitInput(`${field.name} in ${hint.values.map((v) => String(v)).join(",")}`);
+      commitInput(`${field.name} = ${hint.values.map((v) => String(v)).join(",")}`);
       return;
     }
     commitInput(`${field.name} ${String(hint.from)} to ${String(hint.to)}`);

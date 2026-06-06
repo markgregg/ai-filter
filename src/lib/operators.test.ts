@@ -65,8 +65,8 @@ describe("operatorsForType", () => {
     expect(operatorsForType("boolean")).toEqual(["=", "!"]);
   });
 
-  it("set returns =, !, and in", () => {
-    expect(operatorsForType("set")).toEqual(["=", "!", "in"]);
+  it("set returns = and !", () => {
+    expect(operatorsForType("set")).toEqual(["=", "!"]);
   });
 
   it("custom returns ['='] as default fallback", () => {

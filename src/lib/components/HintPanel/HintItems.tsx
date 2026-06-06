@@ -1,35 +1,117 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Hint } from "../../types";
+import type { Hint, MaterializedHint } from "../../types";
 import { useHintPanelSelector } from "./HintPanelContext";
 import { EfScrollArea } from "./EfScrollArea";
 import { cx, preventDefaultMouseDown } from "../ui/utils";
 import { GhostButton } from "../ui/GhostButton";
 import { formatFieldValueForDisplay } from "../../parser";
 import type { FieldDefinition } from "../../types";
+import { collectTreeLeafValues } from "../../tree";
 import styles from "./HintPanel.module.less";
+
+function TreeHintItems({ field }: { field: FieldDefinition & { type: "tree" } }): JSX.Element {
+  const selectedValues = useHintPanelSelector((s) => s.selectedValues);
+  const onPickHint = useHintPanelSelector((s) => s.onPickHint);
+  const [hoverPath, setHoverPath] = useState<string[]>([]);
+  const selectedValuesLower = useMemo(
+    () => new Set([...selectedValues].map((value) => String(value).toLowerCase())),
+    [selectedValues],
+  );
+
+  const columns = useMemo(() => {
+    const result: Array<Array<{ value: string; children?: Array<{ value: string; children?: unknown[] }> }>> = [];
+    let currentLevel = field.treeValues;
+    let level = 0;
+    while (currentLevel.length > 0 && level < 5) {
+      result.push(currentLevel as Array<{ value: string; children?: Array<{ value: string; children?: unknown[] }> }>);
+      const hovered = hoverPath[level];
+      const next = hovered ? currentLevel.find((node) => node.value === hovered)?.children ?? [] : [];
+      currentLevel = next;
+      level += 1;
+    }
+    return result;
+  }, [field.treeValues, hoverPath]);
+
+  return (
+    <div className={styles.treeHintPopup}>
+      {columns.map((nodes, levelIndex) => (
+        <div key={`tree-level-${levelIndex}`} className={styles.treeHintColumn}>
+          {nodes.map((node) => {
+            const leafValues = collectTreeLeafValues(node);
+            const isParent = Boolean(node.children?.length);
+            const selectedLeafCount = leafValues.filter((leaf) =>
+              selectedValuesLower.has(String(leaf).toLowerCase()),
+            ).length;
+            const allSelected = leafValues.length > 0 && selectedLeafCount === leafValues.length;
+            const leafSelected = selectedLeafCount > 0;
+            const isLeaf = !isParent;
+            const isRowActive = isLeaf ? leafSelected : allSelected;
+
+            return (
+              <GhostButton
+                key={`${levelIndex}-${node.value}`}
+                type="button"
+                className={cx(styles.hintRow, isRowActive && styles.active, isParent && styles.treeHintParent)}
+                onMouseDown={preventDefaultMouseDown}
+                onMouseEnter={() => {
+                  const nextPath = hoverPath.slice(0, levelIndex);
+                  nextPath[levelIndex] = node.value;
+                  setHoverPath(nextPath);
+                }}
+                onClick={() => {
+                  if (leafValues.length <= 1) {
+                    onPickHint(field, {
+                      kind: "single",
+                      text: node.value,
+                      operator: "=",
+                      value: leafValues[0] ?? node.value,
+                    }, allSelected);
+                    return;
+                  }
+                  onPickHint(field, {
+                    kind: "list",
+                    text: node.value,
+                    operator: "=",
+                    values: leafValues,
+                  }, allSelected);
+                }}
+              >
+                <span>{node.value}</span>
+                {isParent ? <span className={styles.treeHintChevron}>›</span> : null}
+              </GhostButton>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function HintItem({ entry }: { entry: { field: FieldDefinition; hint: Hint } }): JSX.Element {
   const isFavoritesSelected = useHintPanelSelector((s) => s.isFavoritesSelected);
-  const currentField = useHintPanelSelector((s) => s.currentField);
   const selectedValues = useHintPanelSelector((s) => s.selectedValues);
   const onPickHint = useHintPanelSelector((s) => s.onPickHint);
 
   const hint = entry.hint;
   const fieldForHint = entry.field;
+  const previewHint: MaterializedHint | undefined = hint.kind === "computed" ? hint.preview : hint;
 
   let caption: string;
   let isHintSelected: boolean;
 
-  if (hint.kind === "list") {
-    caption = `${String(hint.operator)} (${hint.values.map((v) => formatFieldValueForDisplay(fieldForHint, v)).join(", ")})`;
-    isHintSelected = hint.values.some((v) => selectedValues.has(formatFieldValueForDisplay(fieldForHint, v)));
-  } else if (hint.kind === "range") {
-    caption = `${formatFieldValueForDisplay(fieldForHint, hint.from)} to ${formatFieldValueForDisplay(fieldForHint, hint.to)}`;
+  if (previewHint?.kind === "list") {
+    caption = `${String(previewHint.operator)} (${previewHint.values.map((v) => formatFieldValueForDisplay(fieldForHint, v)).join(", ")})`;
+    isHintSelected = previewHint.values.some((v) => selectedValues.has(formatFieldValueForDisplay(fieldForHint, v)));
+  } else if (previewHint?.kind === "range") {
+    caption = `${formatFieldValueForDisplay(fieldForHint, previewHint.from)} to ${formatFieldValueForDisplay(fieldForHint, previewHint.to)}`;
+    isHintSelected = selectedValues.has(caption);
+  } else if (previewHint?.kind === "single") {
+    const isDateField = fieldForHint.type === "date" || fieldForHint.type === "datetime";
+    caption = isDateField ? formatFieldValueForDisplay(fieldForHint, previewHint.value) : hint.text;
     isHintSelected = selectedValues.has(caption);
   } else {
-    const isDateField = fieldForHint.type === "date" || fieldForHint.type === "datetime";
-    caption = isDateField ? formatFieldValueForDisplay(fieldForHint, hint.value) : hint.text;
-    isHintSelected = selectedValues.has(caption);
+    caption = hint.text;
+    isHintSelected = false;
   }
 
   const displayCaption = isFavoritesSelected
@@ -41,8 +123,8 @@ function HintItem({ entry }: { entry: { field: FieldDefinition; hint: Hint } }):
   const renderedCaption = fieldForHint.renderers?.hint?.({
     defaultText: capturedCaption,
     hint,
-    value: hint.kind === "single" ? hint.value : undefined,
-    values: hint.kind === "list" ? hint.values : undefined,
+    value: previewHint?.kind === "single" ? previewHint.value : undefined,
+    values: previewHint?.kind === "list" ? previewHint.values : undefined,
   });
 
   function handleClick(): void {
@@ -62,6 +144,8 @@ function HintItem({ entry }: { entry: { field: FieldDefinition; hint: Hint } }):
 }
 
 export function HintItems(): JSX.Element {
+  const currentField = useHintPanelSelector((s) => s.currentField);
+  const isFavoritesSelected = useHintPanelSelector((s) => s.isFavoritesSelected);
   const hintEntries = useHintPanelSelector((s) => s.hintEntries);
   const hintColumns = useHintPanelSelector((s) => s.hintColumns);
   const hintVirtualized = useHintPanelSelector((s) => s.hintVirtualized);
@@ -139,6 +223,14 @@ export function HintItems(): JSX.Element {
           gridTemplateColumns: `repeat(${hintColumns}, 1fr)`,
         }
       : undefined;
+
+  if (currentField.type === "tree" && !isFavoritesSelected) {
+    return (
+      <EfScrollArea className={styles.values}>
+        <TreeHintItems field={currentField} />
+      </EfScrollArea>
+    );
+  }
 
   return (
     <EfScrollArea className={styles.values} viewportRef={viewportRef}>

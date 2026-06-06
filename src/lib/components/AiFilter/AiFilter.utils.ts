@@ -1,9 +1,11 @@
 import { findLeadingOperator, isPlausibleValue, operatorsForField } from "../../operators";
+import { flattenTreeNodes } from "../../tree";
 import type { FieldDefinition, FieldMatch, Hint, MatchRankingConfig } from "../../types";
 
 export function matchesFromInput(args: {
   input: string;
   fields: FieldDefinition[];
+  mode?: "simple" | "complex";
   setValuesByField: Record<string, string[]>;
   hintsByField: Record<string, Hint[]>;
   pillCountByField: Record<string, number>;
@@ -17,8 +19,9 @@ export function matchesFromInput(args: {
 
   // Fields that have reached their maxInstances limit should not appear in suggestions.
   const availableFields = args.fields.filter((f) => {
-    if (f.maxInstances === undefined) return true;
-    return (args.pillCountByField[f.name] ?? 0) < f.maxInstances;
+    const maxInstances = args.mode === "simple" ? 1 : f.maxInstances;
+    if (maxInstances === undefined) return true;
+    return (args.pillCountByField[f.name] ?? 0) < maxInstances;
   });
 
   // ── Case 1: input starts with a recognised field name ──────────────────────
@@ -31,7 +34,11 @@ export function matchesFromInput(args: {
 
   if (prefixField) {
     const afterField = needle.slice(prefixField.name.toLowerCase().length).trim();
-    const { op, rest: valueText } = findLeadingOperator(afterField);
+    const { op, rest: parsedRest } = findLeadingOperator(afterField);
+    const valueText =
+      op === "in" && (prefixField.type === "set" || prefixField.type === "tree")
+        ? afterField
+        : parsedRest;
     const lookupMinChars = prefixField.lookupMinChars ?? 0;
 
     // No value typed yet — suppress the dropdown.
@@ -39,7 +46,11 @@ export function matchesFromInput(args: {
     if (prefixField.type === "set" && valueText.length < lookupMinChars) return [];
 
     // Operator is present but not valid for this field — suppress.
-    if (op !== undefined && !operatorsForField(prefixField).includes(op)) return [];
+    if (
+      op !== undefined &&
+      !(op === "in" && (prefixField.type === "set" || prefixField.type === "tree")) &&
+      !operatorsForField(prefixField).includes(op)
+    ) return [];
 
     const valueNeedle = valueText.toLowerCase();
     const results: FieldMatch[] = [];
@@ -74,9 +85,51 @@ export function matchesFromInput(args: {
       }
     }
 
+    if (prefixField.type === "tree") {
+      const treeNodes = flattenTreeNodes(prefixField.treeValues);
+      const directMatches = treeNodes.filter((node) =>
+        node.value.toLowerCase().includes(valueNeedle),
+      );
+      const leafMatches = directMatches.filter((node) => node.isLeaf);
+      const effectiveMatches = leafMatches.length > 0 ? leafMatches : directMatches;
+      for (const node of effectiveMatches) {
+        if (node.isLeaf) {
+          results.push({
+            type: "set-value",
+            field: prefixField,
+            text: node.value,
+            setValue: node.value,
+            operator: op,
+            rank: prefixField.precedence * 100 + 12,
+          });
+        } else {
+          results.push({
+            type: "hint",
+            field: prefixField,
+            text: node.value,
+            hint: node.leafValues.length > 1
+              ? {
+                  kind: "list",
+                  text: node.value,
+                  operator: "=",
+                  values: node.leafValues,
+                }
+              : {
+                  kind: "single",
+                  text: node.value,
+                  operator: "=",
+                  value: node.leafValues[0],
+                },
+            operator: op,
+            rank: prefixField.precedence * 100 + 11,
+          });
+        }
+      }
+    }
+
     // Value-candidate for non-set fields (or set with no matching hints/values).
     const alreadyMatched = results.length > 0;
-    if (!alreadyMatched && prefixField.type !== "set" && isPlausibleValue(prefixField, valueText)) {
+    if (!alreadyMatched && prefixField.type !== "set" && prefixField.type !== "tree" && isPlausibleValue(prefixField, valueText)) {
       results.push({
         type: "value-candidate",
         field: prefixField,
@@ -158,6 +211,49 @@ export function matchesFromInput(args: {
       continue; // set fields never get a free-text value-candidate
     }
 
+    if (field.type === "tree") {
+      const treeNodes = flattenTreeNodes(field.treeValues);
+      const directMatches = treeNodes.filter((node) =>
+        node.value.toLowerCase().includes(matchNeedle),
+      );
+      const leafMatches = directMatches.filter((node) => node.isLeaf);
+      const effectiveMatches = leafMatches.length > 0 ? leafMatches : directMatches;
+      for (const node of effectiveMatches) {
+        if (node.isLeaf) {
+          results.push({
+            type: "set-value",
+            field,
+            text: node.value,
+            setValue: node.value,
+            operator: leadingOp,
+            rank: field.precedence * 100 + 12,
+          });
+        } else {
+          results.push({
+            type: "hint",
+            field,
+            text: node.value,
+            hint: node.leafValues.length > 1
+              ? {
+                  kind: "list",
+                  text: node.value,
+                  operator: "=",
+                  values: node.leafValues,
+                }
+              : {
+                  kind: "single",
+                  text: node.value,
+                  operator: "=",
+                  value: node.leafValues[0],
+                },
+            operator: leadingOp,
+            rank: field.precedence * 100 + 11,
+          });
+        }
+      }
+      continue;
+    }
+
     const fieldHints = args.hintsByField[field.name] ?? [];
     for (const hint of fieldHints) {
       if (hint.text.toLowerCase().includes(matchNeedle)) {
@@ -210,8 +306,8 @@ export function matchesFromInput(args: {
     if (a.field.precedence !== b.field.precedence) {
       return b.field.precedence - a.field.precedence;
     }
-    const aSet = a.field.type === "set" ? 1 : 0;
-    const bSet = b.field.type === "set" ? 1 : 0;
+    const aSet = a.field.type === "set" || a.field.type === "tree" ? 1 : 0;
+    const bSet = b.field.type === "set" || b.field.type === "tree" ? 1 : 0;
     if (aSet !== bSet) {
       return bSet - aSet;
     }

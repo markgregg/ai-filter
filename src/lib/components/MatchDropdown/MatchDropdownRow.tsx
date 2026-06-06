@@ -25,16 +25,23 @@ export function MatchDropdownRow(props: {
       return `= ${formatFieldValueForDisplay(match.field, match.text)}`;
     }
     if (match.type === "hint" && match.hint) {
-      if (match.hint.kind === "single") {
+      const preview = match.hint.kind === "computed" ? match.hint.preview : match.hint;
+      if (!preview) {
+        return match.hint.text;
+      }
+      if (preview.kind === "single") {
         if (match.field.type === "date" || match.field.type === "datetime") {
-          return formatFieldValueForDisplay(match.field, match.hint.value);
+          return formatFieldValueForDisplay(match.field, preview.value);
         }
         return match.hint.text;
       }
-      if (match.hint.kind === "list") {
-        return `${String(match.hint.operator)} (${match.hint.values.map((v) => formatFieldValueForDisplay(match.field, v)).join(", ")})`;
+      if (preview.kind === "list") {
+        if (match.field.type === "tree") {
+          return match.hint.text;
+        }
+        return `${String(preview.operator)} (${preview.values.map((v) => formatFieldValueForDisplay(match.field, v)).join(", ")})`;
       }
-      return `${formatFieldValueForDisplay(match.field, match.hint.from)} to ${formatFieldValueForDisplay(match.field, match.hint.to)}`;
+      return `${formatFieldValueForDisplay(match.field, preview.from)} to ${formatFieldValueForDisplay(match.field, preview.to)}`;
     }
     if (match.type === "set-value") {
       return formatFieldValueForDisplay(match.field, match.setValue ?? match.text);
@@ -48,8 +55,15 @@ export function MatchDropdownRow(props: {
         ? match.text
         : match.hint?.kind === "single"
           ? match.hint.value
+          : match.hint?.kind === "computed" && match.hint.preview?.kind === "single"
+            ? match.hint.preview.value
           : undefined;
-  const suggestionValues = match.hint?.kind === "list" ? match.hint.values : undefined;
+  const suggestionValues =
+    match.hint?.kind === "list"
+      ? match.hint.values
+      : match.hint?.kind === "computed" && match.hint.preview?.kind === "list"
+        ? match.hint.preview.values
+        : undefined;
   const renderedText = match.field.renderers?.match?.({
     defaultText,
     value: suggestionValue,

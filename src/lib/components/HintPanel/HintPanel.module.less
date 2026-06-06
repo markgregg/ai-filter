@@ -204,6 +204,32 @@
   border-bottom: 0;
 }
 
+.treeHintPopup {
+  display: flex;
+  align-items: flex-start;
+  min-width: max-content;
+}
+
+.treeHintColumn {
+  min-width: 10rem;
+  border-right: 1px solid var(--ef-divider);
+}
+
+.treeHintColumn:last-child {
+  border-right: 0;
+}
+
+.treeHintParent {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between !important;
+}
+
+.treeHintChevron {
+  color: var(--ef-muted);
+  margin-left: 0.4rem;
+}
+
 /* ── Base UI ScrollArea ───────────────────────────────────────────────────── */
 .scrollRoot {
   height: 100%;

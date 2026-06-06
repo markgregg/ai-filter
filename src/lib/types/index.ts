@@ -8,12 +8,13 @@ export type FieldType =
   | "date"
   | "datetime"
   | "set"
+  | "tree"
   | "custom";
 
 export type StringOperator = "=" | "!" | "*" | "!*" | "<*" | ">*";
 export type CompareOperator = "=" | "!" | ">" | "<" | ">=" | "<=";
 export type BooleanOperator = "=" | "!";
-export type SetOperator = "=" | "!" | "in";
+export type SetOperator = "=" | "!";
 
 export type BuiltInOperator =
   | StringOperator
@@ -97,7 +98,21 @@ export type HintRange = {
   to: unknown;
 };
 
-export type Hint = HintSingle | HintList | HintRange;
+export type MaterializedHint = HintSingle | HintList | HintRange;
+
+export type HintComputed = {
+  kind: "computed";
+  text: string;
+  /** Optional preview used for selection highlighting and custom renderers before resolve runs. */
+  preview?: MaterializedHint;
+  /**
+   * Computes the actual hint payload when the row is selected.
+   * This allows dynamic values such as "today", "next week", or rolling ranges.
+   */
+  compute: () => MaterializedHint | Promise<MaterializedHint>;
+};
+
+export type Hint = MaterializedHint | HintComputed;
 
 export type HintSource =
   | Hint[]
@@ -181,6 +196,24 @@ type SetFieldDefinition = BaseFieldDefinition & {
   operators?: AnyOperator[];
 };
 
+export type TreeValueNode = {
+  value: string;
+  children?: TreeValueNode[];
+};
+
+type TreeFieldDefinition = BaseFieldDefinition & {
+  type: "tree";
+  /**
+   * Static hierarchical values (up to 5 levels).
+   * Only leaf values can be committed into pills.
+   */
+  treeValues: TreeValueNode[];
+  setValues?: never;
+  setValuesDebounceMs?: never;
+  translate?: never;
+  operators?: AnyOperator[];
+};
+
 type StandardFieldDefinition = BaseFieldDefinition & {
   type: "string" | "integer" | "float" | "boolean" | "date" | "datetime";
   translate?: Translator;
@@ -193,6 +226,7 @@ type StandardFieldDefinition = BaseFieldDefinition & {
 export type FieldDefinition =
   | CustomFieldDefinition
   | SetFieldDefinition
+  | TreeFieldDefinition
   | StandardFieldDefinition;
 
 export type LogicalToken = "AND" | "OR" | "(" | ")";
@@ -277,6 +311,12 @@ export type AiFilterProps = {
   /** Fired after AG Grid external filter callbacks are rebuilt from the latest pill expression. */
   onFilterChange?: (event: FilterChangeEvent) => void;
   onClear?: () => void;
+  /**
+   * Interaction mode for filter building.
+   * - `complex` (default): supports logical operators and repeated fields.
+   * - `simple`: disables AND/OR/brackets and enforces one pill per field.
+   */
+  mode?: "simple" | "complex";
   hintsEnabled?: boolean;
   className?: string;
   placeholder?: string;

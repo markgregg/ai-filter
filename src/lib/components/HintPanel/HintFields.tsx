@@ -10,6 +10,7 @@ import { useFilteredHintFields } from "./useFilteredHintFields";
 import styles from "./HintPanel.module.less";
 
 function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
+  const mode = useConfigSelector((s) => s.mode);
   const hasPillSelected = useHintPanelSelector((s) => s.hasPillSelected);
   const fixedField = useHintPanelSelector((s) => s.fixedField);
   const effectiveFieldName = useHintPanelSelector((s) => s.effectiveFieldName);
@@ -28,18 +29,33 @@ function FieldRow({ field }: { field: FieldDefinition }): JSX.Element {
   const fieldPillCount = useDataSelector(
     (s) => s.pills.filter((p) => "fieldName" in p && p.fieldName === field.name).length,
   );
+  const maxInstances = mode === "simple" ? 1 : field.maxInstances;
   const atMax =
-    !aiMode && field.maxInstances !== undefined && fieldPillCount >= field.maxInstances;
+    !aiMode && maxInstances !== undefined && fieldPillCount >= maxInstances;
 
   const isLockedByPill = !aiMode && hasPillSelected && fixedField !== field.name;
   const isLockedByInput = !aiMode && Boolean(inputField) && inputField?.name !== field.name;
   const isLocked = isLockedByPill || isLockedByInput;
-  const isDisabled = isLockedByInput || atMax;
+  const isDisabled = isLockedByInput || (mode !== "simple" && atMax);
   const isSelected = effectiveFieldName === field.name;
 
   const ref = useScrollIntoViewWhenActive<HTMLButtonElement>(isSelected);
 
   function handleSelect(): void {
+    if (mode === "simple") {
+      const existingIndex = pills.findIndex(
+        (p) => "fieldName" in p && p.fieldName === field.name,
+      );
+      if (existingIndex >= 0) {
+        setSelectedIds([pills[existingIndex].id]);
+        setEditingId(undefined);
+        setActiveField(field.name);
+        setInsertIndex(existingIndex);
+        setFocused(true);
+        return;
+      }
+    }
+
     if (isLockedByPill) {
       setSelectedIds([]);
       setEditingId(undefined);

@@ -1,4 +1,5 @@
 import { defaultOperatorForType, findLeadingOperator, operatorsForField } from "./operators";
+import { collectTreeLeafValues, findTreeNodeByValue } from "./tree";
 import type {
   AnyOperator,
   FieldDefinition,
@@ -215,7 +216,7 @@ export function parseInputToPill(args: {
   const parsedValue = parsePrimitive(chosenField, valueText);
 
   if (
-    chosenField.type === "set" &&
+    (chosenField.type === "set" || chosenField.type === "tree") &&
     previousPill?.kind === "value" &&
     previousPill.fieldName === chosenField.name &&
     previousPill.operator === finalOp
@@ -232,7 +233,7 @@ export function parseInputToPill(args: {
   }
 
   if (
-    chosenField.type === "set" &&
+    (chosenField.type === "set" || chosenField.type === "tree") &&
     previousPill?.kind === "list" &&
     previousPill.fieldName === chosenField.name &&
     previousPill.operator === finalOp
@@ -245,7 +246,7 @@ export function parseInputToPill(args: {
     return merged;
   }
 
-  if (chosenField.type === "set" && valueText.includes(",")) {
+  if ((chosenField.type === "set" || chosenField.type === "tree") && valueText.includes(",")) {
     const values = valueText
       .split(",")
       .map((part) => part.trim())
@@ -260,9 +261,35 @@ export function parseInputToPill(args: {
       id: makeId(),
       kind: "list",
       fieldName: chosenField.name,
-      operator: "in",
+      operator: "=",
       values,
     };
+  }
+
+  if (chosenField.type === "tree") {
+    const matchedNode = findTreeNodeByValue(chosenField.treeValues, valueText);
+    if (matchedNode) {
+      const leafValues = collectTreeLeafValues(matchedNode);
+      if (leafValues.length > 1) {
+        return {
+          id: makeId(),
+          kind: "list",
+          fieldName: chosenField.name,
+          operator: "=",
+          values: leafValues,
+        };
+      }
+      return {
+        id: makeId(),
+        kind: "value",
+        fieldName: chosenField.name,
+        operator: finalOp,
+        value: leafValues[0],
+      };
+    }
+
+    // Tree fields only allow values present in the configured tree.
+    return undefined;
   }
 
   const valuePill: ValuePill = {
@@ -290,7 +317,7 @@ export function pillLabel(pill: FilterPill, fields: FieldDefinition[]): string {
   }
 
   if (pill.kind === "list") {
-    return `${fieldName} in (${pill.values.map((v) => formatFieldValueForDisplay(field, v)).join(", ")})`;
+    return `${fieldName} = (${pill.values.map((v) => formatFieldValueForDisplay(field, v)).join(", ")})`;
   }
 
   const op = pill.operator;

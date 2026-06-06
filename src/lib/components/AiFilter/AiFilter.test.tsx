@@ -169,6 +169,61 @@ describe("AiFilter — entering pills via keyboard", () => {
     });
   });
 
+  it("does not create AND/OR/bracket logical pills in simple mode", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const intOnlyFields: FieldDefinition[] = [
+      { name: "count", type: "integer", precedence: 1 },
+      { name: "price", type: "float", precedence: 2 },
+    ];
+    const initialPills: FilterPill[] = [
+      { id: "p1", kind: "value", fieldName: "count", operator: "=", value: 5 },
+    ];
+    const { getInput } = renderFilter({
+      onChange,
+      pills: initialPills,
+      fields: intOnlyFields,
+      mode: "simple",
+    });
+
+    await user.click(getInput());
+    await user.type(getInput(), "AND");
+    await user.keyboard("{Enter}");
+    await user.type(getInput(), "OR");
+    await user.keyboard("{Enter}");
+    await user.type(getInput(), "(");
+    await user.keyboard("{Enter}");
+
+    // No mutation means no logical token was committed.
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("enforces one pill per field in simple mode", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      { name: "status", type: "set", precedence: 1, setValues: ["New", "Done"] },
+    ];
+    const { getInput, container } = renderFilter({ mode: "simple", fields });
+
+    await user.click(getInput());
+    await user.type(getInput(), "status = New");
+    await user.keyboard("{Enter}");
+
+    const zones = container.querySelectorAll('[data-ef="insert-zone"]');
+    await user.click(zones[zones.length - 1] as HTMLElement);
+    const inputAgain = getInput();
+    expect(inputAgain).toBeTruthy();
+    await user.type(inputAgain, "status = Done");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      const statusPills = Array.from(container.querySelectorAll('[data-ef="pill"]')).filter((el) =>
+        el.textContent?.toLowerCase().includes("status"),
+      );
+      expect(statusPills.length).toBe(1);
+    });
+  });
+
   it("entering 'count = 42' creates an integer pill", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -297,6 +352,60 @@ describe("AiFilter — entering pills via keyboard", () => {
       await user.click(clearBtn);
       expect(onClear).toHaveBeenCalledOnce();
     }
+  });
+});
+
+describe("AiFilter — simple mode", () => {
+  it("hides AND/OR/bracket operator controls in hint panel", async () => {
+    const user = userEvent.setup();
+    const { getInput, container } = renderFilter({ mode: "simple" });
+
+    await user.click(getInput());
+
+    const buttons = Array.from(container.querySelectorAll("button")).map((b) => (b.textContent ?? "").trim());
+    expect(buttons).not.toContain("AND");
+    expect(buttons).not.toContain("OR");
+    expect(buttons).not.toContain("(");
+    expect(buttons).not.toContain(")");
+  });
+
+  it("selecting a hint field with an existing pill auto-selects that pill", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      { name: "title", label: "Title", type: "string", precedence: 10 },
+      { name: "status", label: "Status", type: "set", precedence: 20, setValues: ["New", "Done"] },
+    ];
+    const pills: FilterPill[] = [
+      { id: "p1", kind: "value", fieldName: "status", operator: "=", value: "New" },
+      { id: "p2", kind: "value", fieldName: "title", operator: "=", value: "hello" },
+    ];
+
+    const { container, getInput } = renderFilter({ fields, pills, mode: "simple" });
+    await user.click(getInput());
+
+    const titlePill = Array.from(container.querySelectorAll('[data-ef="pill"]')).find((el) =>
+      el.textContent?.toLowerCase().includes("title"),
+    ) as HTMLElement;
+    expect(titlePill).toBeTruthy();
+    await user.click(titlePill);
+    expect(titlePill.className).toContain("selected");
+
+    const statusFieldButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "Status",
+    ) as HTMLButtonElement;
+    expect(statusFieldButton).toBeTruthy();
+    await user.click(statusFieldButton);
+
+    await waitFor(() => {
+      const statusPill = Array.from(container.querySelectorAll('[data-ef="pill"]')).find((el) =>
+        el.textContent?.toLowerCase().includes("status"),
+      ) as HTMLElement;
+      const selectedStatusPill = Array.from(container.querySelectorAll('[data-ef="pill"]')).find((el) =>
+        el.className.includes("selected") && el.textContent?.toLowerCase().includes("status"),
+      );
+      expect(statusPill).toBeTruthy();
+      expect(selectedStatusPill).toBeTruthy();
+    });
   });
 });
 
@@ -2021,6 +2130,104 @@ describe("AiFilter — hint interactions while pill selected/editing", () => {
   });
 });
 
+describe("AiFilter — computed hints", () => {
+  it("computes a single-value hint only when selected", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const compute = vi.fn(() => ({
+      kind: "single" as const,
+      text: "today",
+      operator: "=" as const,
+      value: "2026-06-06",
+    }));
+    const fields: FieldDefinition[] = [
+      {
+        name: "due",
+        label: "Due",
+        type: "date",
+        precedence: 10,
+        hints: [
+          {
+            kind: "computed",
+            text: "today",
+            compute,
+          },
+        ],
+      },
+    ];
+
+    const { getInput, container } = renderFilter({ fields, onChange });
+    await user.click(getInput());
+
+    expect(compute).not.toHaveBeenCalled();
+    const todayHint = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "today",
+    ) as HTMLButtonElement;
+    expect(todayHint).toBeTruthy();
+
+    await user.click(todayHint);
+
+    await waitFor(() => {
+      expect(compute).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalled();
+      const pills = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      const valuePill = pills.find(
+        (pill): pill is Extract<FilterPill, { kind: "value" }> =>
+          pill.kind === "value" && pill.fieldName === "due",
+      );
+      expect(valuePill).toBeTruthy();
+      expect(String(valuePill?.value)).toContain("2026-06-06");
+    });
+  });
+
+  it("supports computed range hints", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const fields: FieldDefinition[] = [
+      {
+        name: "due",
+        label: "Due",
+        type: "date",
+        precedence: 10,
+        hints: [
+          {
+            kind: "computed",
+            text: "last week",
+            compute: () => ({
+              kind: "range",
+              text: "last week",
+              from: "2026-05-25",
+              to: "2026-05-31",
+            }),
+          },
+        ],
+      },
+    ];
+
+    const { getInput, container } = renderFilter({ fields, onChange });
+    await user.click(getInput());
+
+    const lastWeekHint = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.trim() === "last week",
+    ) as HTMLButtonElement;
+    expect(lastWeekHint).toBeTruthy();
+
+    await user.click(lastWeekHint);
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalled();
+      const pills = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      const rangePill = pills.find(
+        (pill): pill is Extract<FilterPill, { kind: "range" }> =>
+          pill.kind === "range" && pill.fieldName === "due",
+      );
+      expect(rangePill).toBeTruthy();
+      expect(String(rangePill?.from)).toContain("2026-05-25");
+      expect(String(rangePill?.to)).toContain("2026-05-31");
+    });
+  });
+});
+
 describe("AiFilter — NLP single-input behavior", () => {
   it("shows AI icon instead of filter icon when NLP is enabled", () => {
     const fields = mkFields();
@@ -2165,6 +2372,223 @@ describe("AiFilter — paste lists and favorites", () => {
     });
 
     localStorage.removeItem(`ai-filter:${id}:favorites`);
+  });
+});
+
+describe("AiFilter — tree fields", () => {
+  const cityTreeField: FieldDefinition = {
+    name: "city",
+    label: "City",
+    type: "tree",
+    precedence: 100,
+    treeValues: [
+      {
+        value: "Europe",
+        children: [
+          { value: "Germany", children: [{ value: "Berlin" }, { value: "Munich" }] },
+          { value: "Great Britain", children: [{ value: "London" }, { value: "Manchester" }] },
+        ],
+      },
+      {
+        value: "Asia",
+        children: [
+          { value: "China", children: [{ value: "Hong Kong" }] },
+          { value: "Australia", children: [{ value: "Sydney" }, { value: "Canberra" }] },
+        ],
+      },
+    ],
+  };
+
+  it("shows top-level tree hints and reveals child levels on hover", async () => {
+    const user = userEvent.setup();
+    const { getInput, container } = renderFilter({ fields: [cityTreeField] });
+
+    await user.click(getInput());
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Europe");
+      expect(container.textContent).toContain("Asia");
+      expect(container.textContent).not.toContain("Berlin");
+    });
+
+    const europeButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.includes("Europe"),
+    ) as HTMLButtonElement;
+    expect(europeButton).toBeTruthy();
+    await user.hover(europeButton);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Germany");
+      expect(container.textContent).toContain("Great Britain");
+    });
+
+    const germanyButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.includes("Germany"),
+    ) as HTMLButtonElement;
+    expect(germanyButton).toBeTruthy();
+    await user.hover(germanyButton);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Berlin");
+      expect(container.textContent).toContain("Munich");
+    });
+  });
+
+  it("clicking a parent tree hint toggles all descendant leaf values", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { getInput } = renderFilter({ fields: [cityTreeField], onChange });
+
+    await user.click(getInput());
+    await user.hover(document.body.querySelector("button") as Element);
+
+    const europeButton = Array.from(document.body.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.includes("Europe"),
+    ) as HTMLButtonElement;
+    expect(europeButton).toBeTruthy();
+    await user.click(europeButton);
+
+    await waitFor(() => {
+      const pills = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      const cityPill = pills.find((pill) => "fieldName" in pill && pill.fieldName === "city") as any;
+      expect(cityPill).toBeTruthy();
+      expect(cityPill.kind).toBe("list");
+      expect(cityPill.values).toEqual(["Berlin", "Munich", "London", "Manchester"]);
+    });
+
+    await user.click(europeButton);
+
+    await waitFor(() => {
+      const pills = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      expect(pills.length).toBe(0);
+    });
+  });
+
+  it("typing a top-level tree value matches all descendant leaves, while leaf typing matches only the leaf", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { getInput, container } = renderFilter({ fields: [cityTreeField], onChange });
+
+    await user.click(getInput());
+    await user.type(getInput(), "city Europe");
+
+    const europeMatch = await waitFor(() => {
+      const row = Array.from(container.querySelectorAll("button")).find(
+        (btn) => btn.textContent?.includes("Europe"),
+      ) as HTMLButtonElement | undefined;
+      expect(row).toBeTruthy();
+      return row as HTMLButtonElement;
+    });
+    await user.click(europeMatch);
+
+    await waitFor(() => {
+      const pills = onChange.mock.calls[onChange.mock.calls.length - 1][0] as FilterPill[];
+      const cityPill = pills.find((pill) => "fieldName" in pill && pill.fieldName === "city") as any;
+      expect(cityPill.kind).toBe("list");
+      expect(cityPill.values).toEqual(["Berlin", "Munich", "London", "Manchester"]);
+    });
+
+    await user.click(container.querySelector('[data-ef="insert-zone"]') as HTMLElement);
+    await user.clear(getInput());
+    await user.type(getInput(), "city berlin");
+
+    await waitFor(() => {
+      const matchDropdown = container.querySelector('[aria-label="Matches"]') as HTMLElement;
+      expect(matchDropdown).toBeTruthy();
+      expect(matchDropdown.textContent?.toLowerCase()).toContain("berlin");
+      expect(matchDropdown.textContent?.toLowerCase()).not.toContain("manchester");
+      expect(matchDropdown.textContent).not.toContain("Europe");
+    });
+  });
+
+  it("highlights selected lowest-level tree values in hint rows", async () => {
+    const user = userEvent.setup();
+    const { getInput, container } = renderFilter({ fields: [cityTreeField] });
+
+    await user.click(getInput());
+    await user.type(getInput(), "city berlin");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      const pill = container.querySelector('[data-ef="pill"]') as HTMLElement;
+      expect(pill).toBeTruthy();
+      expect(pill.textContent?.toLowerCase()).toContain("berlin");
+    });
+
+    const europeButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.includes("Europe"),
+    ) as HTMLButtonElement;
+    expect(europeButton).toBeTruthy();
+    await user.hover(europeButton);
+
+    const germanyButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.includes("Germany"),
+    ) as HTMLButtonElement;
+    expect(germanyButton).toBeTruthy();
+    await user.hover(germanyButton);
+
+    await waitFor(() => {
+      const berlinButton = Array.from(container.querySelectorAll("button")).find(
+        (btn) => btn.textContent?.trim() === "Berlin",
+      ) as HTMLButtonElement;
+      expect(berlinButton).toBeTruthy();
+      expect(berlinButton.className).toContain("active");
+    });
+  });
+
+  it("shows parent tree value as selected only when all descendant leaves are selected", async () => {
+    const user = userEvent.setup();
+    const { getInput, container } = renderFilter({ fields: [cityTreeField] });
+
+    await user.click(getInput());
+    await user.type(getInput(), "city europe");
+    await user.keyboard("{Enter}");
+
+    const europeButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.includes("Europe"),
+    ) as HTMLButtonElement;
+    expect(europeButton).toBeTruthy();
+    await user.hover(europeButton);
+
+    await waitFor(() => {
+      const refreshedEuropeButton = Array.from(container.querySelectorAll("button")).find(
+        (btn) => btn.textContent?.includes("Europe"),
+      ) as HTMLButtonElement;
+      expect(refreshedEuropeButton.className).toContain("active");
+    });
+
+    await user.click(container.querySelector('[data-ef="insert-zone"]') as HTMLElement);
+    await user.clear(getInput());
+    await user.type(getInput(), "city berlin");
+    await user.keyboard("{Enter}");
+
+    await user.hover(europeButton);
+    await waitFor(() => {
+      const refreshedEuropeButton = Array.from(container.querySelectorAll("button")).find(
+        (btn) => btn.textContent?.includes("Europe"),
+      ) as HTMLButtonElement;
+      expect(refreshedEuropeButton.className).not.toContain("active");
+    });
+  });
+
+  it("applies selected styling immediately after clicking a tree hint", async () => {
+    const user = userEvent.setup();
+    const { getInput, container } = renderFilter({ fields: [cityTreeField] });
+
+    await user.click(getInput());
+
+    const europeButton = Array.from(container.querySelectorAll("button")).find(
+      (btn) => btn.textContent?.includes("Europe"),
+    ) as HTMLButtonElement;
+    expect(europeButton).toBeTruthy();
+    await user.click(europeButton);
+
+    await waitFor(() => {
+      const refreshedEuropeButton = Array.from(container.querySelectorAll("button")).find(
+        (btn) => btn.textContent?.includes("Europe"),
+      ) as HTMLButtonElement;
+      expect(refreshedEuropeButton.className).toContain("active");
+    });
   });
 });
 

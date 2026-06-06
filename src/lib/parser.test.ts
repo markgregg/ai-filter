@@ -35,6 +35,20 @@ const FIELDS: FieldDefinition[] = [
   { name: "created", type: "datetime", precedence: 5 },
   { name: "active", type: "boolean", precedence: 6 },
   { name: "status", type: "set", precedence: 7, setValues: ["New", "In Progress", "Done"] },
+  {
+    name: "city",
+    type: "tree",
+    precedence: 8,
+    treeValues: [
+      {
+        value: "Europe",
+        children: [
+          { value: "Germany", children: [{ value: "Berlin" }, { value: "Munich" }] },
+          { value: "Great Britain", children: [{ value: "London" }, { value: "Manchester" }] },
+        ],
+      },
+    ],
+  },
   { name: "custom", type: "custom", translate: (v) => `__${v}__`, operators: ["=", "!"], precedence: 8 },
 ];
 
@@ -152,7 +166,7 @@ describe("parsePrimitive", () => {
   const floatField = FIELDS[2]; // float
   const boolField = FIELDS[5]; // boolean
   const dateField = FIELDS[3]; // date
-  const customFieldDef = FIELDS[7]; // custom with translate
+  const customFieldDef = FIELDS.find((field) => field.name === "custom") as FieldDefinition;
 
   it("parses string as-is", () => {
     expect(parsePrimitive(strField, "hello")).toBe("hello");
@@ -520,6 +534,26 @@ describe("parseInputToPill — custom field", () => {
   });
 });
 
+describe("parseInputToPill — tree field", () => {
+  it("parses a parent node into a list pill with descendant leaves", () => {
+    const p = parseInput("city = Europe") as ListPill;
+    expect(p.kind).toBe("list");
+    expect(p.fieldName).toBe("city");
+    expect(p.values).toEqual(["Berlin", "Munich", "London", "Manchester"]);
+  });
+
+  it("parses a leaf node into a single value pill", () => {
+    const p = parseInput("city = Berlin") as ValuePill;
+    expect(p.kind).toBe("value");
+    expect(p.fieldName).toBe("city");
+    expect(p.value).toBe("Berlin");
+  });
+
+  it("rejects unknown tree values", () => {
+    expect(parseInput("city = Atlantis")).toBeUndefined();
+  });
+});
+
 describe("parseInputToPill — range parsing", () => {
   it("parses integer range", () => {
     const p = parseInput("count 1 to 10") as RangePill;
@@ -612,7 +646,7 @@ describe("pillLabel", () => {
 
   it("list pill", () => {
     const pill: ListPill = { id: "x", kind: "list", fieldName: "status", operator: "in", values: ["New", "Done"] };
-    expect(pillLabel(pill, FIELDS)).toBe("status in (New, Done)");
+    expect(pillLabel(pill, FIELDS)).toBe("status = (New, Done)");
   });
 
   it("value pill with default operator (omits operator)", () => {

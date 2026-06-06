@@ -14,6 +14,9 @@ export function toSingleHints(values: readonly unknown[]): Hint[] {
 }
 
 export function hintIdentityKey(hint: Hint): string {
+  if (hint.kind === "computed") {
+    return `computed|${hint.text}`;
+  }
   if (hint.kind === "single") {
     return `single|${String(hint.value)}`;
   }

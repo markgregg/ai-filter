@@ -8,11 +8,13 @@ import {
 } from "react";
 import { createContext, useContextSelector } from "use-context-selector";
 import { toSingleHints, uniqueStringValues } from "./hints";
+import { maxTreeDepth, topLevelTreeHints } from "./tree";
 import type { AiFilterProps, FieldDefinition, FilterPill, Hint } from "./types";
 
 type ConfigState = {
   id?: string;
   fields: FieldDefinition[];
+  mode: "simple" | "complex";
   hintsEnabled: boolean;
   maxFavorites?: number;
   hintFieldSearch: boolean;
@@ -125,6 +127,7 @@ export function AiFilterProvider({
   pills,
   onChange,
   onClear,
+  mode = "complex",
   hintsEnabled = true,
   maxFavorites,
   hintFieldSearch = false,
@@ -336,6 +339,14 @@ export function AiFilterProvider({
 
       async function executeLoad(): Promise<Hint[]> {
         let hints: Hint[] = [];
+        if (field.type === "tree") {
+          if (maxTreeDepth(field.treeValues) > 5) {
+            throw new Error(`Tree field '${field.name}' exceeds maximum depth of 5 levels.`);
+          }
+          hints = topLevelTreeHints(field.treeValues);
+          setHintsByField((prev) => ({ ...prev, [field.name]: hints }));
+          return hints;
+        }
         if (source === "fieldValues" && field.type === "set") {
           // Do not trigger async set-value providers from hint preloading.
           // Async set-values are lookup-driven and loaded from input typing.
@@ -448,6 +459,7 @@ export function AiFilterProvider({
     () => ({
       id,
       fields,
+      mode,
       hintsEnabled,
       maxFavorites,
       hintFieldSearch,
@@ -457,7 +469,7 @@ export function AiFilterProvider({
       onChange,
       onClear,
     }),
-    [id, fields, hintsEnabled, maxFavorites, hintFieldSearch, placeholder, aiPlaceholder, pillMaxWidth, onChange, onClear],
+    [id, fields, mode, hintsEnabled, maxFavorites, hintFieldSearch, placeholder, aiPlaceholder, pillMaxWidth, onChange, onClear],
   );
 
   const dataValue = useMemo<DataState>(

@@ -444,3 +444,33 @@ describe("matchesFromInput — behavioral ranking", () => {
 
 });
 
+describe("matchesFromInput — tree fields", () => {
+  const treeField: FieldDefinition = {
+    name: "city",
+    type: "tree",
+    precedence: 10,
+    treeValues: [
+      {
+        value: "Europe",
+        children: [
+          { value: "Germany", children: [{ value: "Berlin" }, { value: "Munich" }] },
+          { value: "Great Britain", children: [{ value: "London" }, { value: "Manchester" }] },
+        ],
+      },
+    ],
+  };
+
+  it("returns parent aggregate hint when matching a parent node", () => {
+    const result = matches("city europe", { fields: [treeField] });
+    const hint = result.find((r) => r.type === "hint");
+    expect(hint).toBeTruthy();
+    expect(hint?.hint?.kind).toBe("list");
+  });
+
+  it("prefers leaf matches over parent matches when leaf text matches", () => {
+    const result = matches("city ber", { fields: [treeField] });
+    expect(result.some((r) => r.type === "set-value" && r.text === "Berlin")).toBe(true);
+    expect(result.some((r) => r.type === "hint" && r.text === "Europe")).toBe(false);
+  });
+});
+

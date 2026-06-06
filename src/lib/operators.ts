@@ -3,7 +3,7 @@ import type { AnyOperator, FieldDefinition, FieldType } from "./types";
 const STRING_OPERATORS: AnyOperator[] = ["=", "!", "*", "!*", "<*", ">*"];
 const COMPARE_OPERATORS: AnyOperator[] = ["=", "!", ">", "<", ">=", "<="];
 const BOOLEAN_OPERATORS: AnyOperator[] = ["=", "!"];
-const SET_OPERATORS: AnyOperator[] = ["=", "!", "in"];
+const SET_OPERATORS: AnyOperator[] = ["=", "!"];
 
 export const OPERATOR_ORDER = [">=", "<=", "!*", "<*", ">*", "=", "!", ">", "<", "*", "in"];
 
@@ -27,6 +27,7 @@ export function operatorsForType(type: FieldType): AnyOperator[] {
     case "boolean":
       return BOOLEAN_OPERATORS;
     case "set":
+    case "tree":
       return SET_OPERATORS;
     case "custom":
       return ["="];
@@ -69,6 +70,7 @@ export function isPlausibleValue(field: FieldDefinition, value: string): boolean
     case "datetime":
       return !Number.isNaN(Date.parse(value)) || /^\d/.test(value);
     case "set":
+    case "tree":
       return false; // set fields require a value from the hint/set-values list
   }
 }
@@ -94,6 +96,7 @@ export function isValidValue(field: FieldDefinition, value: string): boolean {
     case "datetime":
       return !Number.isNaN(Date.parse(value));
     case "set":
+    case "tree":
       return true; // set validity is checked against the options list separately
   }
 }

@@ -1004,14 +1004,15 @@ export function resolveNlpExpression(
   //              "field in X or Y or Z"      → in [X, Y, Z]
   //   Negative:  "field not one of X, Y, Z" → ! [X, Y, Z]
   //              "field none of X, Y, Z"     → ! [X, Y, Z]
-  // Only produced for fields whose operators include "in" (positive)
+  // Only produced for fields whose operators include "=" (positive)
   // or "!" (negative).
   const isPositiveListOp = /^(one of|any of|in)$/i.test(operatorToken);
   const isNegativeListOp = /^(not one of|none of|not any of|not in)$/i.test(operatorToken);
+  const isListCapableField = matchedField.type === "set" || matchedField.type === "tree";
 
-  if ((isPositiveListOp && allowedOps.includes("in")) ||
-      (isNegativeListOp && allowedOps.includes("!"))) {
-    const listOp: AnyOperator = isNegativeListOp ? "!" : "in";
+    if (isListCapableField && ((isPositiveListOp && allowedOps.includes("=")) ||
+      (isNegativeListOp && allowedOps.includes("!")))) {
+    const listOp: AnyOperator = isNegativeListOp ? "!" : "=";
     const listParts = valueToken
       .split(/\s*,\s*|\s+or\s+/i)
       .map((p) => p.trim())

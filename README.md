@@ -294,7 +294,7 @@ type FilterPill =
 ### `Hint`
 
 ```ts
-type Hint = HintSingle | HintList | HintRange;
+type Hint = HintSingle | HintList | HintRange | HintComputed;
 ```
 
 | Hint type | Shape | Description |
@@ -302,6 +302,7 @@ type Hint = HintSingle | HintList | HintRange;
 | `HintSingle` | `{ kind: "single", text, operator, value }` | One-click creation of a single-value pill. |
 | `HintList` | `{ kind: "list", text, operator, values }` | One-click creation of a list pill. |
 | `HintRange` | `{ kind: "range", text, from, to }` | One-click creation of a range pill. |
+| `HintComputed` | `{ kind: "computed", text, compute, preview? }` | Computes a single/list/range payload only when selected. Useful for rolling dates like `today`, `next week`, `last year`. |
 
 ### `FieldRenderers`
 
@@ -399,6 +400,52 @@ type HintSource = Hint[] | (() => Promise<Hint[]>) | "fieldValues";
     { kind: "single", text: "Critical", operator: "=", value: 1 },
     { kind: "single", text: "High", operator: "=", value: 2 },
     { kind: "range", text: "Top 3", from: 1, to: 3 },
+  ],
+}
+```
+
+### Computed hints example
+
+```ts
+{
+  name: "due",
+  type: "date",
+  precedence: 90,
+  hints: [
+    {
+      kind: "computed",
+      text: "today",
+      compute: () => {
+        const now = new Date();
+        const today = now.toISOString().slice(0, 10);
+        return { kind: "single", text: "today", operator: "=", value: today };
+      },
+    },
+    {
+      kind: "computed",
+      text: "tomorrow",
+      compute: () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        return { kind: "single", text: "tomorrow", operator: "=", value: d.toISOString().slice(0, 10) };
+      },
+    },
+    {
+      kind: "computed",
+      text: "last week",
+      compute: () => {
+        const end = new Date();
+        end.setDate(end.getDate() - end.getDay());
+        const start = new Date(end);
+        start.setDate(start.getDate() - 6);
+        return {
+          kind: "range",
+          text: "last week",
+          from: start.toISOString().slice(0, 10),
+          to: end.toISOString().slice(0, 10),
+        };
+      },
+    },
   ],
 }
 ```

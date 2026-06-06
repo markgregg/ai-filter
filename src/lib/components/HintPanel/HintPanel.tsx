@@ -16,6 +16,21 @@ const FAVORITES_FIELD_NAME = "__favorites__";
 function hintMatchesText(hint: Hint, needle: string): boolean {
   if (hint.text.toLowerCase().includes(needle)) return true;
 
+  if (hint.kind === "computed") {
+    const preview = hint.preview;
+    if (!preview) return false;
+    if (preview.kind === "single") {
+      return String(preview.value).toLowerCase().includes(needle);
+    }
+    if (preview.kind === "list") {
+      return preview.values.some((v) => String(v).toLowerCase().includes(needle));
+    }
+    return (
+      String(preview.from).toLowerCase().includes(needle) ||
+      String(preview.to).toLowerCase().includes(needle)
+    );
+  }
+
   if (hint.kind === "single") {
     return String(hint.value).toLowerCase().includes(needle);
   }
@@ -49,6 +64,7 @@ export function HintPanel(props: {
   forceVisible?: boolean;
 }): JSX.Element | null {
   const fields = useConfigSelector((s) => s.fields);
+  const mode = useConfigSelector((s) => s.mode);
   const maxFavorites = useConfigSelector((s) => s.maxFavorites);
   const hintsEnabled = useConfigSelector((s) => s.hintsEnabled);
   const inputValue = useUiSelector((s) => s.inputValue);
@@ -155,7 +171,7 @@ export function HintPanel(props: {
       const field = fields.find((f) => f.name === fieldName);
       if (!field) continue;
       for (const [encoded, count] of Object.entries(valueCounts)) {
-        let value: unknown = encoded;
+        let value: unknown;
         try {
           value = JSON.parse(encoded);
         } catch {
@@ -188,9 +204,12 @@ export function HintPanel(props: {
       // locally-cached fieldHints state which is only set on initial load.
       const ctxHints = hintsByField[fieldName];
       const activeHints = ctxHints !== undefined ? ctxHints : (fieldHints[fieldName] ?? []);
+      if (currentField?.type === "tree") {
+        return dedupeHintsByIdentity(activeHints);
+      }
       return dedupeHintsByIdentity([...recent, ...activeHints]);
     },
-    [recent, hintsByField, fieldHints, currentField?.name],
+    [recent, hintsByField, fieldHints, currentField?.name, currentField?.type],
   );
 
   const filteredHints = useMemo(() => {
@@ -282,7 +301,7 @@ export function HintPanel(props: {
   return (
     <HintPanelContext.Provider value={ctxValue}>
       <div className={styles.dropdown} role="listbox" aria-label="Hints">
-        {!props.aiMode && !isFavoritesSelected && <HintOperators />}
+        {!props.aiMode && !isFavoritesSelected && mode !== "simple" && <HintOperators />}
         <div className={styles.body} style={bodyStyle}>
           <HintFields />
           <HintItems />

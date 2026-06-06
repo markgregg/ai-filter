@@ -67,6 +67,14 @@ const STORY_EXPLANATIONS: Record<string, string> = {
     "What it does: accepts comma/tab/newline-delimited pasted values and matches them as a list for a field. How it works: the field exposes an async pasteMatch validator and AiFilter resolves pasted tokens into a list pill in one action.",
   favorites:
     "What it does: exposes a dedicated Favorites entry in the hint field list. How it works: maxFavorites turns on localStorage-backed counting and the Favorites entry shows the most selected items up to the configured max.",
+  "simple-mode":
+    "What it does: runs AiFilter in simple mode. How it works: mode=simple allows only one pill per field, hides AND/OR/bracket controls, and selecting a field that already has a pill auto-selects that pill.",
+  tree:
+    "What it does: demonstrates a hierarchical tree field for locations. How it works: only leaf nodes become pill values, hovering parent hints opens deeper levels, and selecting a parent toggles all descendant leaves.",
+  "date-hints":
+    "What it does: demonstrates dedicated date-oriented hints including rolling single dates and rolling ranges. How it works: computed hints resolve values at click time so entries like today, tomorrow, last week, and next year stay current.",
+  "simple-tree":
+    "What it does: combines simple mode with a tree field. How it works: tree hint interactions still select leaf values, while simple mode enforces one pill per field and hides logical operators.",
 };
 
 function StoryExplanation({ text }: { text: string }): JSX.Element {
@@ -2603,6 +2611,450 @@ Favorites.parameters = {
     description: {
       story:
         "Demonstrates favorites behavior enabled via maxFavorites. Value selections are counted in localStorage and the highest-frequency values are prioritised in future suggestions and hints.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: Simple mode — one pill per field, no logical tokens
+// ---------------------------------------------------------------------------
+
+export const SimpleMode: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([
+    { id: "s1", kind: "value", fieldName: "status", operator: "=", value: "New" },
+  ]);
+
+  return (
+    <div style={{ maxWidth: 760, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS["simple-mode"]} />
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Try selecting <strong>Status</strong> in the hint field list after selecting another pill; the
+        existing Status pill should be auto-selected. Also note that AND/OR/bracket controls are hidden.
+      </p>
+      <AiFilter
+        id="simple-mode"
+        mode="simple"
+        fields={[
+          {
+            name: "title",
+            label: "Title",
+            type: "string",
+            precedence: 100,
+            hints: [
+              { kind: "single", text: "contains urgent", operator: "*", value: "urgent" },
+              { kind: "single", text: "starts with QA", operator: "<*", value: "QA" },
+            ],
+          },
+          {
+            name: "status",
+            label: "Status",
+            type: "set",
+            precedence: 90,
+            setValues: ["New", "In Progress", "Blocked", "Done"],
+            hints: "fieldValues",
+          },
+          {
+            name: "priority",
+            label: "Priority",
+            type: "integer",
+            precedence: 80,
+            hints: [
+              { kind: "single", text: "critical", operator: "=", value: 1 },
+              { kind: "single", text: "high", operator: "=", value: 2 },
+            ],
+          },
+        ]}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => setPills([])}
+        hintFieldSearch={true}
+        placeholder="Simple mode: one filter per field"
+      />
+      <pre
+        style={{
+          marginTop: "1rem",
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+SimpleMode.storyName = "Simple mode";
+SimpleMode.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates mode=simple behavior: one pill per field, hidden AND/OR/bracket controls, and auto-selecting existing field pills when their hint field is chosen.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: Tree field — hierarchical hints and leaf-only pill values
+// ---------------------------------------------------------------------------
+
+export const TreeField: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+
+  return (
+    <div style={{ maxWidth: 820, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS.tree} />
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Try this flow: select <strong>City</strong> in hint fields, hover <strong>Europe</strong> then
+        <strong> Germany</strong> to reveal <strong>Berlin</strong>/<strong>Munich</strong>. Clicking a parent
+        (like Europe or Germany) selects all descendant leaf cities; clicking it again clears those leaves.
+      </p>
+      <AiFilter
+        id="tree-story"
+        fields={[
+          {
+            name: "city",
+            label: "City",
+            type: "tree",
+            precedence: 100,
+            treeValues: [
+              {
+                value: "Europe",
+                children: [
+                  {
+                    value: "Germany",
+                    children: [{ value: "Berlin" }, { value: "Munich" }],
+                  },
+                  {
+                    value: "Great Britain",
+                    children: [{ value: "London" }, { value: "Manchester" }],
+                  },
+                ],
+              },
+              {
+                value: "Asia",
+                children: [
+                  {
+                    value: "China",
+                    children: [{ value: "Hong Kong" }],
+                  },
+                  {
+                    value: "Australia",
+                    children: [{ value: "Sydney" }, { value: "Canberra" }],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            name: "status",
+            label: "Status",
+            type: "set",
+            precedence: 80,
+            setValues: ["New", "In Progress", "Blocked", "Done"],
+            hints: "fieldValues",
+          },
+        ]}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => setPills([])}
+        hintFieldSearch={true}
+        placeholder="Try: city Europe, city Berlin, or hover tree hints"
+      />
+      <pre
+        style={{
+          marginTop: "1rem",
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+TreeField.storyName = "Tree field";
+TreeField.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates hierarchical tree filtering. Tree hints auto-generate from static treeValues, hover reveals deeper levels, parent selection toggles descendant leaves, and only leaf values are committed into pills.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: Date hints (dedicated) - rolling singles and ranges
+// ---------------------------------------------------------------------------
+
+function startOfDayIso(date: Date): string {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+function addDaysIso(base: Date, days: number): string {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return startOfDayIso(d);
+}
+
+function previousMondayIso(base: Date): string {
+  const d = new Date(base);
+  const day = d.getDay();
+  const distance = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - distance - 7);
+  return startOfDayIso(d);
+}
+
+function nextMondayIso(base: Date): string {
+  const d = new Date(base);
+  const day = d.getDay();
+  const distance = day === 0 ? 1 : 8 - day;
+  d.setDate(d.getDate() + distance);
+  return startOfDayIso(d);
+}
+
+function weekRangeIso(base: Date, direction: "last" | "next"): { from: string; to: string } {
+  const ref = new Date(base);
+  const day = ref.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  ref.setDate(ref.getDate() + mondayOffset);
+
+  if (direction === "last") {
+    ref.setDate(ref.getDate() - 7);
+  } else {
+    ref.setDate(ref.getDate() + 7);
+  }
+
+  const start = new Date(ref);
+  const end = new Date(ref);
+  end.setDate(end.getDate() + 6);
+  return { from: startOfDayIso(start), to: startOfDayIso(end) };
+}
+
+function yearRangeIso(base: Date, direction: "last" | "next"): { from: string; to: string } {
+  const year = base.getFullYear() + (direction === "last" ? -1 : 1);
+  const from = new Date(year, 0, 1);
+  const to = new Date(year, 11, 31);
+  return { from: startOfDayIso(from), to: startOfDayIso(to) };
+}
+
+export const DateHints: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+
+  return (
+    <div style={{ maxWidth: 820, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS["date-hints"]} />
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        Use hint rows like <strong>today</strong>, <strong>tomorrow</strong>, <strong>last monday</strong>,
+        <strong> next monday</strong>, <strong>last week</strong>, and <strong>next year</strong>.
+        Values are computed at selection time so they remain current.
+      </p>
+      <AiFilter
+        id="date-hints"
+        fields={[
+          {
+            name: "due",
+            label: "Due Date",
+            type: "date",
+            precedence: 100,
+            hints: [
+              {
+                kind: "computed",
+                text: "today",
+                compute: () => ({ kind: "single", text: "today", operator: "=", value: startOfDayIso(new Date()) }),
+              },
+              {
+                kind: "computed",
+                text: "tomorrow",
+                compute: () => ({ kind: "single", text: "tomorrow", operator: "=", value: addDaysIso(new Date(), 1) }),
+              },
+              {
+                kind: "computed",
+                text: "yesterday",
+                compute: () => ({ kind: "single", text: "yesterday", operator: "=", value: addDaysIso(new Date(), -1) }),
+              },
+              {
+                kind: "computed",
+                text: "last monday",
+                compute: () => ({ kind: "single", text: "last monday", operator: "=", value: previousMondayIso(new Date()) }),
+              },
+              {
+                kind: "computed",
+                text: "next monday",
+                compute: () => ({ kind: "single", text: "next monday", operator: "=", value: nextMondayIso(new Date()) }),
+              },
+              {
+                kind: "computed",
+                text: "last week",
+                compute: () => {
+                  const range = weekRangeIso(new Date(), "last");
+                  return { kind: "range", text: "last week", from: range.from, to: range.to };
+                },
+              },
+              {
+                kind: "computed",
+                text: "next week",
+                compute: () => {
+                  const range = weekRangeIso(new Date(), "next");
+                  return { kind: "range", text: "next week", from: range.from, to: range.to };
+                },
+              },
+              {
+                kind: "computed",
+                text: "last year",
+                compute: () => {
+                  const range = yearRangeIso(new Date(), "last");
+                  return { kind: "range", text: "last year", from: range.from, to: range.to };
+                },
+              },
+              {
+                kind: "computed",
+                text: "next year",
+                compute: () => {
+                  const range = yearRangeIso(new Date(), "next");
+                  return { kind: "range", text: "next year", from: range.from, to: range.to };
+                },
+              },
+            ],
+          },
+          {
+            name: "status",
+            label: "Status",
+            type: "set",
+            precedence: 80,
+            setValues: ["New", "In Progress", "Blocked", "Done"],
+            hints: "fieldValues",
+          },
+        ]}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => setPills([])}
+        hintFieldSearch={true}
+        placeholder="Try date hints or type: due = 2026-06-06"
+      />
+      <pre
+        style={{
+          marginTop: "1rem",
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+DateHints.storyName = "Date hints (dedicated)";
+DateHints.parameters = {
+  docs: {
+    description: {
+      story:
+        "Dedicated date-hints scenario using computed hints. Date shortcuts are materialized when selected, so recurring labels like today and next week always resolve to fresh values.",
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Story: Simple mode + tree field (dedicated)
+// ---------------------------------------------------------------------------
+
+export const SimpleModeTreeField: Story = () => {
+  const [pills, setPills] = useState<FilterPill[]>([]);
+
+  return (
+    <div style={{ maxWidth: 820, padding: "1.5rem" }}>
+      <StoryExplanation text={STORY_EXPLANATIONS["simple-tree"]} />
+      <p style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#6b7280" }}>
+        In simple mode, each field can have only one pill. Try selecting a tree parent like
+        <strong> Europe</strong> to add all descendant leaves, then click it again to clear.
+      </p>
+      <AiFilter
+        id="simple-tree"
+        mode="simple"
+        fields={[
+          {
+            name: "location",
+            label: "Location",
+            type: "tree",
+            precedence: 100,
+            treeValues: [
+              {
+                value: "Europe",
+                children: [
+                  {
+                    value: "Germany",
+                    children: [{ value: "Berlin" }, { value: "Munich" }],
+                  },
+                  {
+                    value: "France",
+                    children: [{ value: "Paris" }, { value: "Lyon" }],
+                  },
+                ],
+              },
+              {
+                value: "Americas",
+                children: [
+                  {
+                    value: "USA",
+                    children: [{ value: "New York" }, { value: "Austin" }],
+                  },
+                  {
+                    value: "Canada",
+                    children: [{ value: "Toronto" }, { value: "Vancouver" }],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            name: "status",
+            label: "Status",
+            type: "set",
+            precedence: 80,
+            setValues: ["New", "In Progress", "Blocked", "Done"],
+            hints: "fieldValues",
+          },
+        ]}
+        pills={pills}
+        onChange={setPills}
+        onClear={() => setPills([])}
+        hintFieldSearch={true}
+        placeholder="Simple mode + tree: try location Europe"
+      />
+      <pre
+        style={{
+          marginTop: "1rem",
+          padding: "0.75rem",
+          background: "#f4f6f9",
+          border: "1px solid #dde3ed",
+          borderRadius: 4,
+          fontSize: "0.75rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {JSON.stringify(pills, null, 2)}
+      </pre>
+    </div>
+  );
+};
+SimpleModeTreeField.storyName = "Simple mode + tree field";
+SimpleModeTreeField.parameters = {
+  docs: {
+    description: {
+      story:
+        "Dedicated example combining mode=simple with a tree field. Tree hint behavior remains intact while simple mode constraints (single pill per field and no logical operators) are enforced.",
     },
   },
 };

@@ -491,7 +491,7 @@ describe("set field â€” list operators (positive)", () => {
     const p = resolve("status in New,Done,Blocked") as ListPill;
     expect(p.kind).toBe("list");
     expect(p.fieldName).toBe("status");
-    expect(p.operator).toBe("in");
+    expect(p.operator).toBe("=");
     expect(p.values).toEqual(["New", "Done", "Blocked"]);
   });
 
@@ -503,7 +503,7 @@ describe("set field â€” list operators (positive)", () => {
   it("'one of' with comma-separated values", () => {
     const p = resolve("status one of New, Done") as ListPill;
     expect(p.kind).toBe("list");
-    expect(p.operator).toBe("in");
+    expect(p.operator).toBe("=");
     expect(p.values).toHaveLength(2);
     expect(p.values).toContain("New");
     expect(p.values).toContain("Done");
@@ -512,7 +512,7 @@ describe("set field â€” list operators (positive)", () => {
   it("'any of' â†’ positive list", () => {
     const p = resolve("status any of New, Done") as ListPill;
     expect(p.kind).toBe("list");
-    expect(p.operator).toBe("in");
+    expect(p.operator).toBe("=");
   });
 
   it("'in' with or-separated values", () => {
@@ -1001,7 +1001,7 @@ describe("resolveNlpQuery â€” list expressions with AND", () => {
   it("list clause followed by AND â€” commas inside list NOT split as clause separators", () => {
     const pills = resolveNlpQuery("status in New,Done and count > 5", FIELDS);
     expect(pills).toHaveLength(3);
-    expect(pills[0]).toMatchObject({ kind: "list", fieldName: "status", operator: "in" });
+    expect(pills[0]).toMatchObject({ kind: "list", fieldName: "status", operator: "=" });
     expect((pills[0] as ListPill).values).toHaveLength(2);  // New and Done
     expect(pills[1]).toMatchObject({ kind: "and" });
     expect(pills[2]).toMatchObject({ kind: "value", fieldName: "count" });
