@@ -3,6 +3,7 @@ import {
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -892,6 +893,17 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
     rootRef.current?.focus();
   }
 
+  const collapseInteractiveUi = useCallback((): void => {
+    setFocused(false);
+    setSelectedIds([]);
+    setEditingId(undefined);
+    setInsertIndex(pills.length);
+    requestAnimationFrame(() => {
+      const el = pillsAreaRef.current;
+      if (el) el.scrollLeft = el.scrollWidth;
+    });
+  }, [pills.length, setEditingId, setFocused, setInsertIndex, setSelectedIds]);
+
   function handleFocusCapture(): void {
     setFocused(true);
   }
@@ -899,16 +911,26 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
   function handleBlurCapture(e: FocusEvent<HTMLDivElement>): void {
     const next = e.relatedTarget as Node | null;
     if (!e.currentTarget.contains(next)) {
-      setFocused(false);
-      setSelectedIds([]);
-      setEditingId(undefined);
-      setInsertIndex(pills.length);
-      requestAnimationFrame(() => {
-        const el = pillsAreaRef.current;
-        if (el) el.scrollLeft = el.scrollWidth;
-      });
+      collapseInteractiveUi();
     }
   }
+
+  useEffect(() => {
+    if (!focused || keepSuggestionsVisible || editingId) return;
+
+    function handleDocumentMouseDown(event: globalThis.MouseEvent): void {
+      const root = rootRef.current;
+      const target = event.target as Node | null;
+      if (!root || !target) return;
+      if (root.contains(target)) return;
+      collapseInteractiveUi();
+    }
+
+    document.addEventListener("mousedown", handleDocumentMouseDown, true);
+    return () => {
+      document.removeEventListener("mousedown", handleDocumentMouseDown, true);
+    };
+  }, [collapseInteractiveUi, editingId, focused, keepSuggestionsVisible]);
 
   function handleFrameMouseDown(e: MouseEvent<HTMLDivElement>): void {
     const target = e.target as HTMLElement;

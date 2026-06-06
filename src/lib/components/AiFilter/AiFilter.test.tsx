@@ -1777,6 +1777,47 @@ describe("AiFilter — hintsEnabled", () => {
     expect(rows.length).toBeLessThan(10000);
   });
 
+  it("closes hint panel on outside click after selecting a hint-created pill", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      {
+        name: "status",
+        label: "Status",
+        type: "string",
+        precedence: 100,
+        hints: [
+          { kind: "single", text: "Open", operator: "=", value: "Open" },
+          { kind: "single", text: "Closed", operator: "=", value: "Closed" },
+        ],
+      },
+    ];
+
+    const { container, getInput } = renderFilter({ fields });
+    await user.click(getInput());
+
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]');
+      expect(panel).toBeTruthy();
+    });
+
+    const openHintButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+      .find((btn) => btn.textContent?.trim() === "Open");
+    expect(openHintButton).toBeTruthy();
+    await user.click(openHintButton as HTMLButtonElement);
+
+    await waitFor(() => {
+      const pills = container.querySelectorAll('[data-ef="pill"]');
+      expect(pills.length).toBe(1);
+    });
+
+    await user.click(document.body);
+
+    await waitFor(() => {
+      const panel = container.querySelector('[role="listbox"]');
+      expect(panel).toBeFalsy();
+    });
+  });
+
   it("displays date-field hints without time using the configured date format", async () => {
     const user = userEvent.setup();
     const fields: FieldDefinition[] = [
