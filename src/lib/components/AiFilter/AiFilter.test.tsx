@@ -1747,6 +1747,36 @@ describe("AiFilter — hintsEnabled", () => {
     expect(rows.length).toBeLessThan(200);
   });
 
+  it("automatically virtualizes large hint lists by default", async () => {
+    const user = userEvent.setup();
+    const fields: FieldDefinition[] = [
+      {
+        name: "sku",
+        label: "SKU",
+        type: "string",
+        precedence: 100,
+        hints: Array.from({ length: 10000 }, (_, index) => ({
+          kind: "single" as const,
+          text: `SKU-${index + 1}`,
+          operator: "=" as const,
+          value: `SKU-${index + 1}`,
+        })),
+      },
+    ];
+
+    const { container, getInput } = renderFilter({ fields });
+    await user.click(getInput());
+
+    await waitFor(() => {
+      const virtualized = container.querySelector('[data-ef="hint-items-virtualized"]');
+      expect(virtualized).toBeTruthy();
+    });
+
+    const rows = container.querySelectorAll('[data-ef="hint-items-grid"] button');
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThan(10000);
+  });
+
   it("displays date-field hints without time using the configured date format", async () => {
     const user = userEvent.setup();
     const fields: FieldDefinition[] = [

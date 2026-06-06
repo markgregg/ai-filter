@@ -168,6 +168,7 @@ export function AiFilterProvider({
   const hintsTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const hintsPendingRef = useRef<Record<string, Array<Waiter<Hint[]>>>>({});
   const hintsAbortRef = useRef<Record<string, AbortController | undefined>>({});
+  const hintSourceByFieldRef = useRef<Record<string, FieldDefinition["hints"] | undefined>>({});
 
   useEffect(() => {
     setValuesByFieldRef.current = setValuesByField;
@@ -211,6 +212,36 @@ export function AiFilterProvider({
 
     if (!Object.keys(staticValues).length) return;
     setSetValuesByField((prev) => ({ ...prev, ...staticValues }));
+  }, [fields]);
+
+  useEffect(() => {
+    const previous = hintSourceByFieldRef.current;
+    const next: Record<string, FieldDefinition["hints"] | undefined> = {};
+    const changedNames = new Set<string>();
+
+    for (const field of fields) {
+      next[field.name] = field.hints;
+      if (previous[field.name] !== field.hints) {
+        changedNames.add(field.name);
+      }
+    }
+
+    for (const fieldName of Object.keys(previous)) {
+      if (!(fieldName in next)) {
+        changedNames.add(fieldName);
+      }
+    }
+
+    hintSourceByFieldRef.current = next;
+    if (changedNames.size === 0) return;
+
+    setHintsByField((prev) => {
+      const filtered = { ...prev };
+      changedNames.forEach((name) => {
+        delete filtered[name];
+      });
+      return filtered;
+    });
   }, [fields]);
 
   useEffect(() => {

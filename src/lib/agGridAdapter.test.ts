@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fieldsFromAgGrid, mergeWithAgGridFields } from "./agGridAdapter";
 import type { AgGridApi, FieldDefinition } from "./types";
 
@@ -148,6 +148,33 @@ describe("fieldsFromAgGrid", () => {
     const fields = fieldsFromAgGrid(api);
     expect(fields).toHaveLength(1);
     expect(fields[0]).toMatchObject({ name: "name", type: "string" });
+  });
+
+  it("caches row-derived values when cacheHints is enabled", async () => {
+    let rows: Row[] = [{ team: "A" }, { team: "B" }];
+    const forEachNode = vi.fn((callback: (node: { data: Row }) => void) => {
+      rows.forEach((row) => callback({ data: row }));
+    });
+
+    const api: AgGridApi = {
+      getColumns: () => [{ getColDef: () => ({ field: "team", filter: "agSetColumnFilter" }) }],
+      forEachNode,
+    };
+
+    const [teamField] = fieldsFromAgGrid(api, { cacheHints: true });
+    if (teamField.type !== "set" || typeof teamField.setValues !== "function") {
+      throw new Error("Expected dynamic set field");
+    }
+
+    rows = [{ team: "C" }];
+
+    await expect(teamField.setValues("")).resolves.toEqual(["A", "B"]);
+    const hints = await (typeof teamField.hints === "function" ? teamField.hints() : []);
+    expect(hints).toMatchObject([
+      { kind: "single", text: "A", value: "A", operator: "=" },
+      { kind: "single", text: "B", value: "B", operator: "=" },
+    ]);
+    expect(forEachNode).toHaveBeenCalledTimes(1);
   });
 });
 

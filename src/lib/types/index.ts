@@ -72,6 +72,8 @@ export type AgGridApi = {
   getColumns?: () => AgGridColumn[] | null;
   getAllGridColumns?: () => AgGridColumn[] | null;
   forEachNode?: (callback: (node: AgGridRowNode) => void) => void;
+  addEventListener?: (eventName: string, listener: () => void) => void;
+  removeEventListener?: (eventName: string, listener: () => void) => void;
   setGridOption?: (key: string, value: unknown) => void;
   onFilterChanged?: () => void;
 };
@@ -306,6 +308,11 @@ export type AiFilterProps = {
   fields?: FieldDefinition[];
   /** Optional AG Grid API. When provided, fields are built from AG Grid column definitions. */
   agGrid?: AgGridApi;
+  /**
+   * AG Grid only: cache generated hints/set-values from row data.
+   * When enabled, values are collected on initialization and refreshed on `onRowDataChanged`.
+   */
+  cacheHints?: boolean;
   pills?: FilterPill[];
   onChange?: (pills: FilterPill[]) => void;
   /** Fired after AG Grid external filter callbacks are rebuilt from the latest pill expression. */
@@ -363,8 +370,10 @@ export type AiFilterProps = {
    */
   maxFavorites?: number;
   /**
-   * Enable virtualized hint rendering for large hint sets.
-   * Defaults to `false`.
+    * Controls virtualized rendering for hint values.
+    * - `true`: always virtualize
+    * - `false`: never virtualize
+    * - `undefined`: virtualize automatically for large hint sets
    */
   hintVirtualized?: boolean;
   /**

@@ -238,7 +238,8 @@ export function HintPanel(props: {
   }, [isFavoritesSelected, favoritesHintEntries, currentField, filteredHints]);
 
   const effectiveHintColumns = props.hintColumns ?? inferHintColumns(filteredHints.length);
-  const useHintVirtualization = Boolean(props.hintVirtualized) && filteredHints.length >= 80;
+  const autoVirtualize = filteredHints.length >= 80;
+  const useHintVirtualization = props.hintVirtualized ?? autoVirtualize;
 
   const toggleSelectedField = useCallback(
     (name: string) => setSelectedField((prev) => (prev === name ? undefined : name)),

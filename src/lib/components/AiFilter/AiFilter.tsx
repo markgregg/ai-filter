@@ -399,7 +399,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
   function insertRawPasteText(text: string): void {
     const el = inputRef.current;
     if (!el) {
-      setInputValue((prev) => `${prev}${text}`);
+      setInputValue(`${inputValue}${text}`);
       return;
     }
     const start = el.selectionStart ?? inputValue.length;
@@ -1020,11 +1020,27 @@ function AgGridFilterSync(props: Pick<AiFilterProps, "agGrid" | "onFilterChange"
 }
 
 export function AiFilter(props: AiFilterProps): JSX.Element {
+  const [agGridHintsVersion, setAgGridHintsVersion] = useState(0);
+
+  useEffect(() => {
+    if (!props.agGrid || !props.cacheHints) return;
+    if (typeof props.agGrid.addEventListener !== "function") return;
+
+    const handleRowDataChanged = (): void => {
+      setAgGridHintsVersion((prev) => prev + 1);
+    };
+
+    props.agGrid.addEventListener("onRowDataChanged", handleRowDataChanged);
+    return () => {
+      props.agGrid?.removeEventListener?.("onRowDataChanged", handleRowDataChanged);
+    };
+  }, [props.agGrid, props.cacheHints]);
+
   const resolvedFields = useMemo(() => {
     if (!props.agGrid) return props.fields ?? [];
-    const agGridFields = fieldsFromAgGrid(props.agGrid);
+    const agGridFields = fieldsFromAgGrid(props.agGrid, { cacheHints: props.cacheHints });
     return mergeWithAgGridFields(agGridFields, props.fields);
-  }, [props.agGrid, props.fields]);
+  }, [props.agGrid, props.cacheHints, props.fields, agGridHintsVersion]);
 
   return (
     <AiFilterProvider {...props} fields={resolvedFields}>

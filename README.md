@@ -148,6 +148,7 @@ Notes:
 | `id` | `string` | `undefined` | Storage key suffix for recent values. When provided, recently used values are persisted in `localStorage`. |
 | `fields` | `FieldDefinition[]` | `[]` | Optional explicit fields. When used with `agGrid`, these fields merge by `name` and override generated AG Grid fields with the same name. |
 | `agGrid` | `AgGridApi` | `undefined` | Optional AG Grid API instance. When provided, fields are generated from AG Grid columns (`field` -> `name`, `headerName` -> `label`, `cellDataType` -> `type`). `agSetColumnFilter` forces field type `set`. |
+| `cacheHints` | `boolean` | `false` | AG Grid only. Caches row-derived hints/set values at initialization and refreshes them when `onRowDataChanged` fires. |
 | `pills` | `FilterPill[]` | `[]` | Current pill array. Use this for controlled state. |
 | `onChange` | `(pills: FilterPill[]) => void` | `undefined` | Called whenever pills are added, edited, deleted, pasted, or reordered. Receives the full next array. |
 | `onFilterChange` | `(event: FilterChangeEvent) => void` | `undefined` | Fired when AG Grid external filter callbacks are rebuilt from pills (when `agGrid` is supplied). |
@@ -167,6 +168,7 @@ When `agGrid` is supplied:
 
 - generated field hints are loaded from grid row values when the hint panel is shown
 - generated `set` fields use `filterParams.values` when it is a static array, otherwise values are collected from grid rows
+- with `cacheHints={true}`, row-derived values are collected once at mount and refreshed when AG Grid emits `onRowDataChanged`
 - user-provided `fields` with the same `name` override generated field definitions
 
 ### `AiConfig`

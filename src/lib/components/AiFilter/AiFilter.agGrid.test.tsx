@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, waitFor } from "@testing-library/react";
+import { render, waitFor, act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AiFilter } from "../../index";
 import type { AgGridApi, FieldDefinition } from "../../types";
@@ -54,5 +54,35 @@ describe("AiFilter agGrid integration", () => {
     expect(isPresent()).toBe(true);
     expect(doesPass({ data: { count: 6 } })).toBe(true);
     expect(doesPass({ data: { count: 3 } })).toBe(false);
+  });
+
+  it("refreshes AG Grid-derived cached hints when onRowDataChanged is emitted", async () => {
+    let rows: Array<Record<string, unknown>> = [{ title: "Ada" }];
+    let onRowDataChangedHandler: (() => void) | undefined;
+
+    const agGrid: AgGridApi = {
+      getColumns: () => [{ getColDef: () => ({ field: "title", cellDataType: "text" }) }],
+      forEachNode: vi.fn((callback) => {
+        rows.forEach((row) => callback({ data: row }));
+      }),
+      addEventListener: vi.fn((eventName, listener) => {
+        if (eventName === "onRowDataChanged") onRowDataChangedHandler = listener;
+      }),
+      removeEventListener: vi.fn(),
+    };
+
+    render(<AiFilter agGrid={agGrid} cacheHints ai={false} />);
+
+    expect(agGrid.addEventListener).toHaveBeenCalledWith("onRowDataChanged", expect.any(Function));
+    expect(agGrid.forEachNode).toHaveBeenCalledTimes(1);
+
+    rows = [{ title: "Bob" }];
+    act(() => {
+      onRowDataChangedHandler?.();
+    });
+
+    await waitFor(() => {
+      expect(agGrid.forEachNode).toHaveBeenCalledTimes(2);
+    });
   });
 });

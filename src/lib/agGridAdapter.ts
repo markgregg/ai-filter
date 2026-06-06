@@ -9,6 +9,9 @@ import type {
 } from "./types";
 
 type GeneratedFieldType = Exclude<FieldType, "custom">;
+type FieldsFromAgGridOptions = {
+  cacheHints?: boolean;
+};
 
 function toColumnDefinition(column: AgGridColumn): AgGridColumnDefinition | undefined {
   if (typeof column.getColDef === "function") return column.getColDef();
@@ -56,6 +59,12 @@ function valuesFromRows(api: AgGridApi, fieldName: string, lookupText?: string):
   return Array.from(unique);
 }
 
+function filterValuesByLookup(values: string[], lookupText?: string): string[] {
+  const needle = lookupText?.trim().toLowerCase();
+  if (!needle) return values;
+  return values.filter((value) => value.toLowerCase().includes(needle));
+}
+
 function setValuesFromColDef(colDef: AgGridColumnDefinition): string[] | undefined {
   const rawValues = colDef.filterParams?.values;
   if (!Array.isArray(rawValues)) return undefined;
@@ -76,7 +85,8 @@ function mapFieldType(colDef: AgGridColumnDefinition): GeneratedFieldType {
   return mapCellDataType(colDef.cellDataType);
 }
 
-export function fieldsFromAgGrid(api: AgGridApi): FieldDefinition[] {
+export function fieldsFromAgGrid(api: AgGridApi, options: FieldsFromAgGridOptions = {}): FieldDefinition[] {
+  const cacheHints = Boolean(options.cacheHints);
   const columns = api.getColumns?.() ?? api.getAllGridColumns?.() ?? [];
   const defs = columns
     .map((column) => toColumnDefinition(column))
@@ -88,11 +98,15 @@ export function fieldsFromAgGrid(api: AgGridApi): FieldDefinition[] {
     const label = colDef.headerName || name;
     const type = mapFieldType(colDef);
     const precedence = total - index;
+    const cachedValues = cacheHints ? valuesFromRows(api, name) : undefined;
 
     if (type === "set") {
       const staticValues = setValuesFromColDef(colDef);
       const setValues = staticValues
         ? staticValues
+        : cachedValues
+          ? async (lookupText: string): Promise<string[]> =>
+              filterValuesByLookup(cachedValues, lookupText)
         : async (lookupText: string): Promise<string[]> =>
             valuesFromRows(api, name, lookupText);
 
@@ -103,7 +117,7 @@ export function fieldsFromAgGrid(api: AgGridApi): FieldDefinition[] {
         precedence,
         setValues,
         hints: async (): Promise<Hint[]> =>
-          makeHints(staticValues ?? valuesFromRows(api, name)),
+          makeHints(staticValues ?? cachedValues ?? valuesFromRows(api, name)),
       };
     }
 
@@ -112,7 +126,7 @@ export function fieldsFromAgGrid(api: AgGridApi): FieldDefinition[] {
       label,
       type,
       precedence,
-      hints: async (): Promise<Hint[]> => makeHints(valuesFromRows(api, name)),
+      hints: async (): Promise<Hint[]> => makeHints(cachedValues ?? valuesFromRows(api, name)),
     };
   });
 }
