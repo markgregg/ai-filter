@@ -2411,7 +2411,7 @@ describe("AiFilter — paste lists and favorites", () => {
     await user.click(second.getInput());
 
     await waitFor(() => {
-      expect(second.getByText("Favorites")).toBeInTheDocument();
+      expect(second.getByText("Favorites")).toBeTruthy();
     });
 
     localStorage.removeItem(`ai-filter:${id}:favorites`);

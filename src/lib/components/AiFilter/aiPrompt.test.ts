@@ -63,7 +63,13 @@ describe("buildFilterPrompt", () => {
 
   it("falls back to raw operator text when no label mapping exists", () => {
     const customFields: FieldDefinition[] = [
-      { name: "raw", type: "custom", precedence: 1, operators: ["=" as const, "??" as unknown as "="] },
+      {
+        name: "raw",
+        type: "custom",
+        precedence: 1,
+        translate: (text) => text,
+        operators: ["=" as const, "??" as unknown as "="],
+      },
     ];
     const prompt = buildFilterPrompt("test", customFields, {});
     expect(prompt).toContain("??");

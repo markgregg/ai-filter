@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Hint, MaterializedHint } from "../../types";
+import type { Hint, MaterializedHint, TreeValueNode } from "../../types";
 import { useHintPanelSelector } from "./HintPanelContext";
 import { EfScrollArea } from "./EfScrollArea";
 import { cx, preventDefaultMouseDown } from "../ui/utils";
@@ -19,11 +19,11 @@ function TreeHintItems({ field }: { field: FieldDefinition & { type: "tree" } })
   );
 
   const columns = useMemo(() => {
-    const result: Array<Array<{ value: string; children?: Array<{ value: string; children?: unknown[] }> }>> = [];
+    const result: TreeValueNode[][] = [];
     let currentLevel = field.treeValues;
     let level = 0;
     while (currentLevel.length > 0 && level < 5) {
-      result.push(currentLevel as Array<{ value: string; children?: Array<{ value: string; children?: unknown[] }> }>);
+      result.push(currentLevel);
       const hovered = hoverPath[level];
       const next = hovered ? currentLevel.find((node) => node.value === hovered)?.children ?? [] : [];
       currentLevel = next;

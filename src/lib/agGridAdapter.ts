@@ -8,7 +8,7 @@ import type {
   Hint,
 } from "./types";
 
-type GeneratedFieldType = Exclude<FieldType, "custom">;
+type GeneratedFieldType = Exclude<FieldType, "custom" | "tree">;
 type FieldsFromAgGridOptions = {
   cacheHints?: boolean;
 };
