@@ -145,6 +145,7 @@ function CoreFilter(props: Pick<AiFilterProps, "className" | "ai" | "colorScheme
       matchesFromInput({
         input: inputValue,
         fields,
+        nlpEnabled: Boolean(aiConfig),
         mode,
         setValuesByField,
         hintsByField,

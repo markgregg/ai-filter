@@ -5,6 +5,7 @@ import type { FieldDefinition, FieldMatch, Hint, MatchRankingConfig } from "../.
 export function matchesFromInput(args: {
   input: string;
   fields: FieldDefinition[];
+  nlpEnabled?: boolean;
   mode?: "simple" | "complex";
   setValuesByField: Record<string, string[]>;
   hintsByField: Record<string, Hint[]>;
@@ -271,7 +272,8 @@ export function matchesFromInput(args: {
     const alreadyMatched = results.some(
       (r) => r.field.name === field.name && (r.type === "hint" || r.type === "set-value"),
     );
-    if (!alreadyMatched && isPlausibleValue(field, matchNeedle)) {
+    const suppressImplicitTextCandidate = Boolean(args.nlpEnabled) && field.type === "string";
+    if (!alreadyMatched && !suppressImplicitTextCandidate && isPlausibleValue(field, matchNeedle)) {
       results.push({
         type: "value-candidate",
         field,

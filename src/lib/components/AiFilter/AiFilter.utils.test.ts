@@ -32,12 +32,14 @@ function matches(
     pillCountByField?: Record<string, number>;
     fields?: FieldDefinition[];
     recentByField?: Record<string, unknown[]>;
+    nlpEnabled?: boolean;
     matchRanking?: MatchRankingConfig | false;
   } = {}
 ) {
   return matchesFromInput({
     input,
     fields: opts.fields ?? FIELDS,
+    nlpEnabled: opts.nlpEnabled,
     setValuesByField: opts.setValuesByField ?? {},
     hintsByField: opts.hintsByField ?? {},
     pillCountByField: opts.pillCountByField ?? {},
@@ -91,6 +93,18 @@ describe("matchesFromInput — field prefix detection", () => {
     // '>' is not valid for string field
     const result = matches("title > test");
     expect(result).toEqual([]);
+  });
+});
+
+describe("matchesFromInput — unprefixed text behavior", () => {
+  it("returns text value-candidates when NLP is disabled", () => {
+    const result = matches("asdhsjkahdjk");
+    expect(result.some((r) => r.type === "value-candidate" && r.field.type === "string")).toBe(true);
+  });
+
+  it("suppresses text value-candidates when NLP is enabled", () => {
+    const result = matches("asdhsjkahdjk", { nlpEnabled: true });
+    expect(result.some((r) => r.type === "value-candidate" && r.field.type === "string")).toBe(false);
   });
 });
 

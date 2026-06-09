@@ -2330,6 +2330,22 @@ describe("AiFilter — NLP single-input behavior", () => {
     });
   });
 
+  it("calls NLP on Enter for plain text when no explicit field is provided", async () => {
+    const user = userEvent.setup();
+    const resolve = vi.fn(async () => "title = hello");
+    const fields = mkFields();
+    const { getInput } = renderFilter({ fields, ai: { resolve }, onChange: vi.fn() });
+
+    await user.click(getInput());
+    await user.type(getInput(), "asdhsjkahdjk");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(resolve).toHaveBeenCalledTimes(1);
+      expect(resolve).toHaveBeenCalledWith(expect.stringContaining("asdhsjkahdjk"));
+    });
+  });
+
   it("prefers selected match over NLP when match exists", async () => {
     const user = userEvent.setup();
     const resolve = vi.fn(async () => "title = hello");
